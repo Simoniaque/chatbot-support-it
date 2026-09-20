@@ -86,10 +86,7 @@ groupe C, avec des scores entre 0.55 et 0.65.
 ## Pistes (à trancher)
 
 1. **Durcir la consigne du prompt** — **testée le 20/09/2026, voir ci-dessous.**
-2. **Abaisser le seuil à 0.55** : refuserait l'invention restante (migration,
-   0.573) mais aussi les questions A7 à A10 (0.554 à 0.627), dont les
-   réponses sont de toute façon les plus faibles. À mesurer sur un corpus
-   plus large avant de décider.
+2. **Abaisser le seuil à 0.55** — **testée le 20/09/2026, voir campagne 3.**
 3. **Vérifier la cohérence extrait / question** avant de générer : quand le
    score est dans la zone 0.55–0.65, demander au modèle si l'extrait répond
    à la question avant de rédiger. Plus coûteux (un appel de plus).
@@ -151,7 +148,56 @@ Ce que ça montre :
   sur un ticket) est le bon sens de l'échange — mais l'appauvrissement des
   réponses est à surveiller quand le corpus grandira.
 
-**Décision** : v2 conservée. Piste 2 (seuil 0.55) à évaluer ensuite pour C4.
+**Décision** : v2 conservée. Piste 2 (seuil 0.55) évaluée ensuite pour C4.
+
+## Campagne 3 — piste 2 : seuil à 0.55 (20/09/2026)
+
+Même jeu, même prompt (v2), `SEUIL_PERTINENCE=0.55` passé en variable
+d'environnement. B inchangé par construction (tous les scores ≥ 0.699).
+
+| # | Question | Score | À 0.65 (campagne 2) | À 0.55 |
+|---|---|---|---|---|
+| A3 | Comment créer un ticket dans GLPI ? | 0.384 | Correcte, 2 étapes | **Appauvrie** : une ligne |
+| A5 | Comment configurer les SLA ? | 0.492 | Une ligne | **Dégradée** : 1 seul extrait retenu (les 3 autres à 0.60–0.63 sont exclus), réponse confuse sur TTO/TTR |
+| A6 | Comment mettre un ticket en attente ? | 0.503 | Partielle | Partielle (2 extraits au lieu de 4) |
+| A7 | Comment importer des données depuis un fichier CSV ? | 0.554 | Correcte | **Faux refus** (seuil) |
+| A8 | Comment fonctionne le plugin FusionInventory ? | 0.608 | Faux refus (modèle) | Faux refus (seuil) |
+| A9 | Comment fonctionne la base de connaissances ? | 0.613 | Partielle | **Faux refus** (seuil) |
+| A10 | Comment gérer l'inventaire du parc informatique ? | 0.627 | Partielle | **Faux refus** (seuil) |
+| C1 | Comment réinitialiser mon mot de passe Windows ? | 0.591 | Refus (modèle) | Refus (seuil) |
+| C4 | Comment migrer GLPI vers un autre serveur ? | 0.573 | **Inventée** | **Refus** (seuil) |
+
+| Indicateur | Campagne 1 (0.65, prompt initial) | Campagne 2 (0.65, v2) | Campagne 3 (0.55, v2) |
+|---|---|---|---|
+| Réponses fournies | 16 / 25 | 11 / 25 | 7 / 25 |
+| Refus justifiés (B) | 9 / 9 | 9 / 9 | 9 / 9 |
+| **Inventions** | 2 / 16 | 1 / 11 | **0 / 7** |
+| Faux refus (A) | 0 / 10 | 1 / 10 | **4 / 10** |
+| Réponses appauvries ou dégradées | 0 | 2 | 4 |
+
+Ce que ça montre :
+
+- **Zéro invention**, objectif atteint — mais **4 questions couvertes sur 10
+  refusées**, dont deux (A7, A8) avaient une réponse correcte. Sur un corpus
+  d'un seul document, c'est le scénario « outil perçu comme inutile » de
+  l'arbitrage.
+- **Effet de bord découvert** : le seuil ne filtre pas seulement le
+  *meilleur* extrait, il filtre *tous* les extraits envoyés au modèle. À
+  0.55, « SLA » (0.492) passe, mais ses trois autres extraits (0.60–0.63)
+  sont écartés : le modèle ne voit plus qu'un extrait et la réponse se
+  dégrade. Abaisser le seuil appauvrit donc aussi les questions qu'il ne
+  refuse pas.
+
+**Décision** : seuil maintenu à **0.65**. La piste 2 est trop coûteuse sur
+ce corpus ; à réévaluer quand il sera plus large (les scores des questions
+couvertes baisseront si la documentation devient plus spécifique).
+
+**Piste 4, issue de l'effet de bord** : séparer les deux rôles du seuil.
+Un seuil de *refus* sur le meilleur extrait (par exemple 0.60), et un seuil
+d'*inclusion* plus large pour les extraits suivants (0.65), afin qu'une
+question acceptée garde tout son contexte. Ne règle pas C4 (0.573) mais
+rendrait un seuil de refus plus bas moins destructeur.
+
 
 ## Reproduire la campagne
 

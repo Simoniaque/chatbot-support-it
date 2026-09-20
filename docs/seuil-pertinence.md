@@ -101,8 +101,16 @@ le modèle doit répondre `HORS_CONTEXTE` quand les extraits ne parlent pas du
 sujet, ce que le code transforme en refus (`motif_refus = "modele"`). Cela a
 réglé le cas « mot de passe Windows » (0.591) mais pas « migration » (0.573) :
 quand l'extrait retenu est vaguement lié, le modèle rédige quand même. Ce
-cas-là relève du seuil (0.55 le refuserait) ou d'une vérification
-extrait/question avant génération ; à trancher sur un corpus plus large.
+cas-là relève du seuil ou d'une vérification extrait/question avant
+génération.
+
+Seuil à 0.55 essayé le même jour (campagne 3) : zéro invention, mais 4
+questions couvertes sur 10 refusées, et un effet de bord : le seuil filtre
+*tous* les extraits, pas seulement le meilleur, donc une question acceptée
+de justesse n'a plus qu'un extrait de contexte et sa réponse se dégrade.
+**0.65 maintenu.** Piste à creuser : deux seuils distincts, l'un pour
+refuser (sur le meilleur extrait), l'autre pour inclure les extraits
+suivants dans le contexte.
 
 ### Reproduire la mesure
 
