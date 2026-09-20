@@ -35,3 +35,5 @@ CLAUDE.md
 
 # Jetons générés pour l'instance GLPI de test : propres à chaque poste.
 outils/glpi-test/*_token.txt
+
+outils/glpi-test/utilisateur_test.json
