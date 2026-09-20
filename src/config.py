@@ -45,3 +45,14 @@ NOMBRE_EXTRAITS = int(os.getenv("NOMBRE_EXTRAITS", "4"))
 #   - seuil trop haut -> il répond à partir d'extraits hors sujet (hallucination)
 # Valeur à justifier dans docs/seuil-pertinence.md, mesures à l'appui.
 SEUIL_PERTINENCE = float(os.getenv("SEUIL_PERTINENCE", "0.65"))
+
+# --- GLPI (facultatif) -----------------------------------------------------
+# Si les trois valeurs sont renseignées, l'interface propose de créer un
+# ticket GLPI quand le chatbot ne trouve pas de réponse. Sinon, la fonction
+# est simplement désactivée : le reste du chatbot marche sans GLPI.
+#   GLPI_URL        : adresse de GLPI, sans /apirest.php (ex. http://glpi.local/glpi)
+#   GLPI_APP_TOKEN  : jeton du client API (Configuration > Générale > API)
+#   GLPI_USER_TOKEN : jeton personnel de l'utilisateur qui créera les tickets
+GLPI_URL = os.getenv("GLPI_URL", "").strip()
+GLPI_APP_TOKEN = os.getenv("GLPI_APP_TOKEN", "").strip()
+GLPI_USER_TOKEN = os.getenv("GLPI_USER_TOKEN", "").strip()

@@ -2,7 +2,7 @@
 Étape 3 : exposer le chatbot via une API et une page web.
 
 Deux livrables du cahier des charges en un seul fichier :
- - l'API      : POST /ask, réutilisable par un autre outil (GLPI plus tard) ;
+ - l'API      : POST /ask (question) et POST /ticket (escalade vers GLPI) ;
  - l'interface: la page statique servie sur /.
 
 À lancer :  uvicorn src.api:app --reload
@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from src import config, rag
+from src import config, glpi, rag
 
 app = FastAPI(title="Chatbot Support IT")
 
@@ -58,6 +58,36 @@ def ask(payload: Question):
         )
 
 
+class DemandeTicket(BaseModel):
+    """Ce que l'interface envoie quand l'utilisateur confirme la création
+    d'un ticket. Seule la question est obligatoire."""
+    question: str = Field(min_length=1, max_length=2000)
+    precisions: str = Field(default="", max_length=5000)
+    demandeur: str = Field(default="", max_length=200)
+
+
+@app.post("/ticket")
+def ticket(payload: DemandeTicket):
+    """Crée un ticket GLPI. N'est appelé qu'après confirmation de
+    l'utilisateur dans l'interface : le chatbot ne crée jamais de ticket
+    de lui-même."""
+    if not glpi.est_configure():
+        raise HTTPException(
+            status_code=503,
+            detail="La création de tickets n'est pas activée (GLPI non "
+                   "configuré dans .env).",
+        )
+    try:
+        return glpi.creer_ticket(
+            question=payload.question.strip(),
+            precisions=payload.precisions,
+            demandeur=payload.demandeur,
+        )
+    except glpi.ErreurGLPI as erreur:
+        # 502 : le problème est entre nous et GLPI, pas dans la requête.
+        raise HTTPException(status_code=502, detail=str(erreur))
+
+
 @app.get("/sante")
 def sante():
     """Vérification rapide de la configuration active."""
@@ -66,6 +96,10 @@ def sante():
         "modele_llm": config.MODELE_LLM,
         "modele_embeddings": config.MODELE_EMBEDDINGS,
         "seuil_pertinence": config.SEUIL_PERTINENCE,
+        # L'interface lit ce champ au chargement pour savoir si elle doit
+        # proposer la création de ticket.
+        "glpi_configure": glpi.est_configure(),
+        "glpi_url": config.GLPI_URL or None,
     }
 
 

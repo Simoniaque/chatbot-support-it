@@ -19,6 +19,16 @@
   #reponse.erreur { background: #fdecec; border-left: 3px solid #d9534f; }
   .sources { margin-top: 20px; font-size: 0.9rem; color: #444; }
   .source { border-left: 3px solid #2b5cff; padding-left: 10px; margin: 10px 0; }
+  #ticket { margin-top: 20px; padding: 16px; border: 1px solid #e0c48a;
+            background: #fffaf0; border-radius: 8px; }
+  #ticket[hidden] { display: none; }
+  #ticket label { display: block; margin-top: 10px; font-size: 0.9rem; }
+  #ticket input, #ticket textarea { width: 100%; box-sizing: border-box;
+            padding: 8px; font: inherit; border: 1px solid #ccc; border-radius: 6px; }
+  #ticket textarea { min-height: 70px; resize: vertical; }
+  #ticket .actions { display: flex; gap: 8px; margin-top: 12px; }
+  #ticket .secondaire { background: #e8e8e8; color: #1a1a1a; }
+  #ticket .resultat { margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -31,12 +41,48 @@
   <div id="reponse"></div>
   <div class="sources" id="sources"></div>
 
+  <!-- Proposition de ticket GLPI : affichée uniquement après un refus,
+       et seulement si GLPI est configuré côté serveur. -->
+  <div id="ticket" hidden>
+    <strong>Souhaitez-vous transmettre votre question au support ?</strong>
+    <p style="margin:6px 0 0; font-size:0.9rem; color:#444">
+      Un ticket GLPI sera créé avec votre question. Rien n'est envoyé tant que
+      vous ne cliquez pas sur « Créer le ticket ».
+    </p>
+    <label>Précisions (facultatif)
+      <textarea id="ticket-precisions" placeholder="Contexte, message d'erreur, ce que vous avez déjà essayé..."></textarea>
+    </label>
+    <label>Votre nom ou e-mail (facultatif)
+      <input id="ticket-demandeur" autocomplete="off">
+    </label>
+    <div class="actions">
+      <button type="button" id="ticket-creer">Créer le ticket</button>
+      <button type="button" id="ticket-annuler" class="secondaire">Non merci</button>
+    </div>
+    <div class="resultat" id="ticket-resultat"></div>
+  </div>
+
 <script>
 const formulaire = document.getElementById('formulaire');
 const champ = document.getElementById('question');
 const bouton = document.getElementById('envoyer');
 const zoneReponse = document.getElementById('reponse');
 const zoneSources = document.getElementById('sources');
+const encartTicket = document.getElementById('ticket');
+const champPrecisions = document.getElementById('ticket-precisions');
+const champDemandeur = document.getElementById('ticket-demandeur');
+const boutonCreer = document.getElementById('ticket-creer');
+const boutonAnnuler = document.getElementById('ticket-annuler');
+const resultatTicket = document.getElementById('ticket-resultat');
+
+// Dernière question ayant reçu un refus : c'est elle qui partira dans le ticket.
+let questionSansReponse = null;
+
+// GLPI est-il configuré côté serveur ? Lu une fois au chargement.
+let glpiDisponible = false;
+fetch('/sante').then(r => r.json())
+  .then(s => { glpiDisponible = !!s.glpi_configure; })
+  .catch(() => {});
 
 // Les extraits viennent des PDF : ils peuvent contenir < > & qui casseraient
 // la page (ou y injecteraient du code) s'ils étaient insérés en HTML brut.
@@ -55,6 +101,8 @@ formulaire.addEventListener('submit', async (evenement) => {
   zoneReponse.className = '';
   zoneReponse.textContent = 'Recherche en cours...';
   zoneSources.innerHTML = '';
+  encartTicket.hidden = true;
+  resultatTicket.textContent = '';
 
   try {
     // Appel de l'API définie dans src/api.py
@@ -77,6 +125,13 @@ formulaire.addEventListener('submit', async (evenement) => {
     zoneReponse.className = donnees.refus ? 'refus' : '';
     zoneReponse.textContent = donnees.reponse;
 
+    if (donnees.refus && glpiDisponible) {
+      questionSansReponse = question;
+      champPrecisions.value = '';
+      boutonCreer.disabled = false;
+      encartTicket.hidden = false;
+    }
+
     if (donnees.sources && donnees.sources.length) {
       zoneSources.innerHTML = '<strong>Sources :</strong>' +
         donnees.sources.map(s => `
@@ -91,6 +146,44 @@ formulaire.addEventListener('submit', async (evenement) => {
     zoneReponse.textContent = 'Erreur : le serveur ne répond pas. ' + erreur;
   } finally {
     bouton.disabled = false;
+  }
+});
+
+boutonAnnuler.addEventListener('click', () => {
+  encartTicket.hidden = true;
+});
+
+// Création du ticket : uniquement sur ce clic explicite.
+boutonCreer.addEventListener('click', async () => {
+  if (!questionSansReponse) return;
+  boutonCreer.disabled = true;
+  resultatTicket.textContent = 'Création du ticket...';
+
+  try {
+    const reponseHttp = await fetch('/ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: questionSansReponse,
+        precisions: champPrecisions.value,
+        demandeur: champDemandeur.value
+      })
+    });
+    const donnees = await reponseHttp.json();
+
+    if (!reponseHttp.ok) {
+      resultatTicket.innerHTML = '<span style="color:#b00">Le ticket n\'a pas pu être créé : '
+        + echapper(donnees.detail || ('HTTP ' + reponseHttp.status)) + '</span>';
+      boutonCreer.disabled = false;
+      return;
+    }
+
+    resultatTicket.innerHTML = 'Ticket <b>n°' + echapper(donnees.id) + '</b> créé. '
+      + '<a href="' + echapper(donnees.url) + '" target="_blank" rel="noopener">Voir dans GLPI</a>';
+    champPrecisions.value = '';
+  } catch (erreur) {
+    resultatTicket.textContent = 'Erreur : le serveur ne répond pas. ' + erreur;
+    boutonCreer.disabled = false;
   }
 });
 </script>
