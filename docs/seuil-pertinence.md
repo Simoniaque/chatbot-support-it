@@ -77,15 +77,26 @@ Avec l'ancienne valeur de 1.0, **aucune** de ces questions n'était refusée :
 « Bonjour » recevait une réponse inventée sur les enquêtes de satisfaction, et
 « coupe du monde 2018 » affichait quatre sources GLPI sans rapport.
 
-### Zone grise
+### Zone grise : 0.55 – 0.65
 
-« Comment réinitialiser mon mot de passe Windows ? » passe le seuil (0.591)
-car le manuel GLPI décrit la réinitialisation du mot de passe **GLPI** depuis
-la page de connexion. Le LLM répond alors en parlant de GLPI, ce qui n'est pas
-la question. Ce cas relève de la catégorie C du jeu de test (sujet proche,
-réponse absente) : c'est la consigne du prompt (« n'invente rien ») qui sert
-de second filtre, et c'est sur ces questions-là que le seuil devra être
-affiné quand le corpus s'enrichira.
+La campagne complète du 20/09/2026 (`tests/questions_test.md`, 25 questions
+passées dans le pipeline entier) a révélé **deux réponses inventées**, toutes
+deux avec un score dans cette zone :
+
+| Question | Score | Ce qui s'est passé |
+|---|---|---|
+| Comment réinitialiser mon mot de passe Windows ? | 0.591 | L'extrait retenu parle du mot de passe **GLPI**. Le modèle constate que le contexte ne répond pas… puis donne une procédure Windows de mémoire |
+| Comment migrer GLPI vers un autre serveur ? | 0.573 | L'extrait retenu (p. 29) parle de raccourcis clavier. Le modèle invente des commandes `glpi-export` / `glpi-import` absentes du corpus |
+
+Dans les deux cas le seuil a laissé passer un extrait sans rapport réel avec
+la question, et la consigne « n'invente rien » n'a pas suffi. À l'inverse,
+les questions couvertes situées dans la même zone (0.554 à 0.627) ont reçu
+les réponses les plus faibles de la campagne.
+
+Conclusion provisoire : 0.65 est correct pour séparer le hors sujet franc,
+mais la zone 0.55–0.65 est peu fiable. Les pistes (prompt plus strict,
+seuil à 0.55, vérification extrait/question) sont listées dans
+`tests/questions_test.md` et restent à trancher sur un corpus plus large.
 
 ### Reproduire la mesure
 
