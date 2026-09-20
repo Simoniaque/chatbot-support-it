@@ -53,41 +53,56 @@ ouvrir **http://localhost:8080**. Identifiants par défaut : **glpi / glpi**.
 GLPI affiche des avertissements de sécurité (comptes par défaut, dossier
 `install` présent) : normal pour une instance de test, on les ignore.
 
-## 3. Activer l'API REST
+## 3. Activer l'API et générer les jetons
 
-Menu **Configuration > Générale**, onglet **API** :
+### Par script (recommandé)
+
+```powershell
+bash configurer-api.sh
+```
+
+(Git Bash est installé avec Git ; depuis PowerShell, `bash` le trouve.)
+
+Le script active l'API REST, ouvre le client API par défaut à toutes les
+adresses, génère un jeton d'application et un jeton d'API pour le compte
+`glpi`, vérifie qu'une session s'ouvre, puis affiche les trois lignes à
+copier dans le `.env` du projet. Les jetons sont aussi gardés dans
+`app_token.txt` et `user_token.txt` (ignorés par Git).
+
+Pourquoi un script PHP dans le conteneur plutôt que du SQL direct : GLPI
+**chiffre les jetons en base** avec la clé de l'instance (`glpicrypt.key`).
+Un jeton écrit en clair par SQL est refusé avec
+`ERROR_WRONG_APP_TOKEN_PARAMETER`. Le script fait chiffrer les valeurs par
+GLPI lui-même avant de les enregistrer.
+
+### À la main (pour comprendre ce que fait le script)
+
+Se connecter sur http://localhost:8080 (glpi / glpi), puis :
+
+**Configuration > Générale**, onglet **API** :
 
 1. **Activer l'API REST** : Oui
-2. **Activer la connexion avec jeton externe** : Oui
-   (c'est ce qui autorise l'authentification par `User-Token`)
+2. **Activer la connexion avec jeton externe** : Oui (déjà le cas par défaut,
+   vérifier)
 3. Enregistrer.
 
-En bas de cet onglet, la liste des **clients API** contient un client par
-défaut « full access from localhost ». Cliquer dessus :
+En bas de cet onglet, cliquer sur le client API **full access from
+localhost** :
 
-- **Plage IPv4** : vider les deux champs (début et fin). Depuis Docker, les
-  requêtes du chatbot n'arrivent pas en `127.0.0.1` mais avec l'adresse du
-  pont Docker ; avec la plage par défaut, elles seraient refusées.
-- **Jeton d'application** : cliquer sur **Régénérer**, puis copier la valeur.
-  C'est le `GLPI_APP_TOKEN`.
+- **Plage IPv4** : vider les deux champs. Depuis Docker, les requêtes du
+  chatbot n'arrivent pas en `127.0.0.1` mais avec l'adresse du pont Docker
+  (`172.18.0.1` dans nos essais) ; avec la plage par défaut, elles seraient
+  refusées.
+- **Jeton d'application** : **Régénérer**, copier la valeur → `GLPI_APP_TOKEN`.
 - Enregistrer.
 
-## 4. Créer l'utilisateur qui portera les tickets
+**Administration > Utilisateurs > glpi**, section **Clés d'accès distant** :
+**Régénérer** le **Jeton d'API**, copier la valeur → `GLPI_USER_TOKEN`.
 
-Menu **Administration > Utilisateurs > Ajouter** :
-
-- Identifiant : `chatbot`
-- Mot de passe : n'importe lequel (il ne servira pas, on passe par le jeton)
-- Onglet **Habilitations** (après enregistrement) : ajouter le profil
-  **Self-Service** sur l'entité racine. Ce profil suffit pour créer des
-  tickets ; ne pas donner plus.
-
-Revenir sur l'onglet principal de l'utilisateur, section **Clés d'accès
-distant** : cliquer sur **Régénérer** à côté de **Jeton d'API**, et copier
-la valeur. C'est le `GLPI_USER_TOKEN`.
-
-(Pour aller vite, on peut utiliser le compte `glpi` lui-même : même endroit,
-même bouton. Mais un compte dédié est ce qu'on fera en production.)
+En production, on créera plutôt un compte dédié `chatbot` avec le seul
+profil **Self-Service** (suffisant pour créer des tickets), et c'est son
+jeton qu'on utilisera : les tickets apparaîtront alors avec ce compte comme
+demandeur.
 
 ## 5. Configurer le chatbot
 
@@ -99,9 +114,9 @@ GLPI_APP_TOKEN=<jeton d'application copié à l'étape 3>
 GLPI_USER_TOKEN=<jeton d'API copié à l'étape 4>
 ```
 
-Relancer le serveur (`uvicorn src.api:app --reload`, ou Ctrl+C puis relance
-s'il tournait déjà), puis vérifier sur http://localhost:8000/sante que
-`"glpi_configure": true`.
+**Relancer le serveur** (Ctrl+C puis `uvicorn src.api:app --reload`) : le
+`.env` n'est lu qu'au démarrage, `--reload` ne suffit pas. Vérifier sur
+http://localhost:8000/sante que `"glpi_configure": true`.
 
 ## 6. Tester
 
@@ -133,6 +148,13 @@ En cas d'erreur, le message dit lequel des trois appels a échoué :
    question, les précisions et le contact, demandeur = `chatbot`.
 
 Le ticket est aussi tracé dans `logs/echanges.jsonl` (type `ticket`).
+
+### Résultat obtenu (20/09/2026)
+
+Validé de bout en bout sur GLPI 11 (image `glpi/glpi:latest`) : ticket créé
+par l'API du chatbot puis depuis l'interface après refus, relu via l'API
+GLPI avec le bon type (Demande), le bon demandeur et le contenu complet
+(question, précisions, contact).
 
 ## 7. Arrêter
 

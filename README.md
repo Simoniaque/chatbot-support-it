@@ -277,13 +277,12 @@ développement.
 - Recherche vectorielle et filtrage par seuil de pertinence (seuil calibré)
 - Génération des réponses avec citation des sources
 - API et interface web
-- Escalade vers GLPI : création de ticket sur refus, après confirmation de l'utilisateur
+- Escalade vers GLPI : création de ticket sur refus, après confirmation de l'utilisateur (validé sur GLPI 11, `docs/glpi-test.md`)
 - Journalisation des échanges (question, extraits retenus, scores, réponse)
 
 **En cours**
 
 - Enrichissement du corpus documentaire
-- Validation de l'escalade GLPI sur une vraie instance (`docs/glpi-test.md`)
 - Mesure des indicateurs de qualité sur le jeu de test
 - Rédaction de `docs/choix-techniques.md`
 

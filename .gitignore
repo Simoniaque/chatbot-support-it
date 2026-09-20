@@ -32,3 +32,6 @@ CLAUDE.md
 
 # Instance GLPI de test : ce .env ne contient que des valeurs locales jetables.
 !outils/glpi-test/.env
+
+# Jetons générés pour l'instance GLPI de test : propres à chaque poste.
+outils/glpi-test/*_token.txt
