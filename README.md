@@ -18,6 +18,7 @@ partir de ceux-ci.
 ```
 question → recherche des extraits proches (ChromaDB)
          → filtrage par seuil de pertinence
+         → vérification extrait par extrait (le modèle juge : répond-il ?)
          → rédaction par Mistral (local, via Ollama)
          → réponse + sources citées
 ```
@@ -309,7 +310,7 @@ développement.
 **En cours**
 
 - Enrichissement du corpus documentaire
-- Réduction du taux d'invention sur les questions limites (1/11 après durcissement du prompt, voir `tests/questions_test.md`)
+- Réduction du taux d'invention : 7/16 → 1/9 réponses après vérification des extraits (voir `tests/questions_test.md`) ; le cas restant (« cependant… ») tient au rédacteur Mistral 7B
 - Rédaction de `docs/choix-techniques.md`
 
 **À planifier**

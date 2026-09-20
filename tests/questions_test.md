@@ -11,6 +11,13 @@ complet (`rag.repondre`), réponses lues une à une.
 Le « meilleur score » est la distance du meilleur extrait (plus c'est bas,
 plus c'est proche) ; la « page » est celle de cet extrait dans le PDF.
 
+> **Correction du 21/09/2026** : les campagnes 1 à 5 ont jugé les réponses
+> sur leur *plausibilité*. En relisant les extraits réellement retenus
+> (campagne 6), il s'est avéré que plusieurs réponses notées « correctes »
+> étaient inventées. Les tables des campagnes 1 à 5 sont conservées telles
+> quelles ; la section « Correction de l'étalon » donne les vrais chiffres,
+> et la méthode à suivre désormais.
+
 ## A. Questions couvertes par le corpus
 Le bot doit répondre, avec la bonne source.
 
@@ -298,7 +305,7 @@ un modèle juge plus fiable (un modèle plus gros, ou un modèle dédié à la
 classification), ou quand le corpus sera plus large. Réactivation : une
 valeur dans `.env`, par exemple `0.55`.
 
-## Bilan général des cinq campagnes
+## Bilan des cinq premières campagnes (avant correction de l'étalon)
 
 Sur ce corpus (un document, 767 morceaux) et avec Mistral 7B, **aucun
 réglage n'atteint zéro invention sans refuser des questions couvertes**. Le
@@ -326,3 +333,116 @@ print(r["refus"], r["meilleur_score"], r["reponse"])
 
 Ou en lot : voir le champ `meilleur_score` et `sources` de chaque ligne de
 `logs/echanges.jsonl` après avoir posé les questions dans l'interface.
+
+## Correction de l'étalon (21/09/2026)
+
+En testant un second modèle juge, ses verdicts « NON » sur des extraits que
+je tenais pour pertinents m'ont fait relire ces extraits. Résultat : ce sont
+mes étiquettes qui étaient fausses. Vérification faite pour chaque question
+de A en comparant la réponse au **texte des extraits retenus** :
+
+| # | Question | Score | Ce que disent vraiment les extraits | Réponse de la campagne 1, en réalité |
+|---|---|---|---|---|
+| A4 | Comment ajouter un utilisateur dans GLPI ? | 0.416 | Inventaire, formulaires, intro de la doc, raccourcis clavier : **rien sur les utilisateurs** | **Inventée** (« Utilisateurs > Ajouter », de mémoire) |
+| A5 | Comment configurer les SLA ? | 0.492 | Champ SLA dans les formulaires, liste TTO/TTR | **Inventée** (« Configuration > Configuration avancée > SLA > Ajouter ») |
+| A7 | Comment importer des données depuis un fichier CSV ? | 0.554 | **Export** CSV, accents dans Excel, préférence « délimiteur CSV » | **Inventée** (procédure d'import en 4 étapes) |
+| A10 | Comment gérer l'inventaire du parc informatique ? | 0.627 | Lignes d'historique (« mise à jour automatique de l'inventaire ») | **Fabriquée** à partir de bruit |
+| C5 | Comment configurer l'authentification LDAP dans GLPI ? | 0.298 | Un renvoi : « Voir Configuration des méthodes d'authentification » | **Inventée** (hôte, port, DN… de mémoire) |
+
+Les autres réponses de A (entité, notifications, créer un ticket, ticket en
+attente, base de connaissances) sont bien ancrées dans les extraits.
+
+Chiffres corrigés de la campagne 1 : **7 inventions sur 16 réponses (44 %)**,
+et non 2. Deux enseignements :
+
+- **Une réponse plausible n'est pas une réponse ancrée.** Mistral connaît
+  GLPI de mémoire ; ce qu'il invente sonne juste. Le seul contrôle valable
+  est de comparer la réponse au texte des extraits retenus, jamais à ce
+  qu'on sait soi-même de GLPI.
+- **Un score bas ne garantit rien.** « Ajouter un utilisateur » a 0.416 et
+  zéro extrait utile : la distance mesure une proximité de vocabulaire, pas
+  la capacité de l'extrait à répondre.
+
+## Campagne 6 — vérification de tous les extraits, juge qwen2.5:7b (21/09/2026)
+
+Deux changements : la vérification s'applique à **chaque** extrait, quel
+que soit son score (`SEUIL_VERIFICATION=0`), et les extraits jugés NON sont
+écartés du contexte (on garde les OUI ; refus s'il n'en reste aucun). Juge :
+`qwen2.5:7b` (`MODELE_JUGE`), choisi comme modèle « plus fiable en
+classification » de même taille. Réponses jugées sur leur **ancrage**.
+
+Avant la campagne, comparaison des deux juges sur le meilleur extrait de
+chacune des 16 questions A + C, étiqueté à la main : **mistral 13/16,
+qwen2.5:7b 14/16**, d'accord entre eux sur 15 cas. Erreurs communes : SLA
+(OUI à tort) et FusionInventory (NON à tort). Le juge n'était donc pas le
+maillon faible.
+
+| # | Question | Score | Vérifiés / écartés | Résultat |
+|---|---|---|---|---|
+| A1 | Qu'est-ce qu'une entité dans GLPI ? | 0.313 | 4 / 2 | **Ancrée** : le juge a gardé p. 415, la vraie définition |
+| A2 | Comment configurer les notifications par e-mail dans GLPI ? | 0.346 | 4 / 2 | **Inventée** : « onglet Profils > Profils de suivi par e-mail > Nouveau profil », absent des extraits |
+| A3 | Comment créer un ticket dans GLPI ? | 0.384 | 4 / 2 | Ancrée (p. 337) |
+| A4 | Comment ajouter un utilisateur dans GLPI ? | 0.416 | 4 / 4 | **Refus justifié** |
+| A5 | Comment configurer les SLA ? | 0.492 | 4 / 2 | Faible : renvoi à « Configurer vos SLA » |
+| A6 | Comment mettre un ticket en attente ? | 0.503 | 4 / 3 | Ancrée, partielle |
+| A7 | Comment importer des données depuis un fichier CSV ? | 0.554 | 4 / 3 | **Inventée** : 6 étapes brodées autour de la ligne « délimiteur CSV » (p. 17) |
+| A8 | Comment fonctionne le plugin FusionInventory ? | 0.608 | 4 / 4 | Faux refus |
+| A9 | Comment fonctionne la base de connaissances ? | 0.613 | 3 / 0 | Ancrée |
+| A10 | Comment gérer l'inventaire du parc informatique ? | 0.627 | 4 / 3 | Ancrée (permissions, p. 477), partielle |
+| C1–C6 | | | | **6 refus sur 6** (LDAP compris : l'extrait n'est qu'un renvoi) |
+
+Bilan : **2 inventions / 8 réponses**, 1 faux refus. Durées 13 à 33 s par
+question, dont la bascule entre les deux modèles sur le GPU.
+
+## Campagne 7 — idem, juge mistral (21/09/2026)
+
+Même réglage, `MODELE_JUGE` vide (juge = rédacteur).
+
+| # | Question | Résultat |
+|---|---|---|
+| A2 | notifications | Ancrée mais hors cible (alertes sur recherches sauvegardées) — **pas inventée** cette fois : le juge n'a gardé qu'un extrait |
+| A7 | import CSV | **Inventée** : « pas de mention… cependant, dans Microsoft Excel… » |
+| A8 | FusionInventory | Faux refus |
+| autres A | | Comme en campagne 6 |
+| C | | 5 refus, LDAP répond par le renvoi lui-même (ancré, inutile, pas inventé) |
+
+Bilan : **1 invention / 9 réponses**, 1 faux refus. Durées **1,6 à 14 s** :
+pas de bascule de modèle.
+
+## Synthèse (chiffres corrigés, réponses jugées sur l'ancrage)
+
+| Réglage | Inventions | Faux refus (A) | Réponses |
+|---|---|---|---|
+| Campagne 1 : 0.65, prompt initial, sans vérification | **7 / 16 (44 %)** | 0 / 10 | 16 / 25 |
+| Campagne 6 : + prompt v2 + vérification de tous les extraits, juge qwen2.5:7b | 2 / 8 | 1 / 10 | 8 / 25 |
+| Campagne 7 : idem, juge mistral **(retenu)** | **1 / 9 (11 %)** | 1 / 10 | 9 / 25 |
+
+Ce que ça montre :
+
+- **Le levier efficace est la vérification extrait par extrait, sur tous les
+  extraits.** Ni le seuil ni la consigne n'y arrivaient : un extrait qui
+  *mentionne* le sujet sans y répondre passe le seuil et pousse le rédacteur
+  à broder. Le juge l'écarte.
+- **Un juge plus « gros » n'apporte rien de mesurable ici.** Mistral et
+  Qwen 7B se trompent sur les mêmes cas limites ; de bout en bout, l'écart
+  (2 contre 1) est dans le bruit d'une exécution à l'autre, et le juge
+  distinct coûte une bascule de modèle à chaque question.
+- **L'invention restante vient du rédacteur**, pas du juge : sur « import
+  CSV », Mistral 7B écrit « pas de mention… cependant… » malgré la consigne.
+  Le levier suivant serait un rédacteur qui obéit mieux (`qwen2.5:7b` en
+  `MODELE_LLM`, à mesurer) — pas un juge plus gros.
+
+**Décision** : vérification **activée par défaut** sur tous les extraits
+(`SEUIL_VERIFICATION=0`), juge = rédacteur (`MODELE_JUGE` vide). Coût :
+quelques secondes par question. Le modèle `qwen2.5:7b` reste installé pour
+le tester en rédacteur.
+
+## Méthode à suivre pour les prochaines campagnes
+
+1. Passer les questions par `rag.repondre` (ou l'interface).
+2. Pour chaque réponse fournie, **relire les extraits retenus**
+   (`sources[].extrait`, ou la page du PDF) et vérifier que chaque affirmation
+   de la réponse y figure. Une étape, un chemin de menu, une commande absents
+   des extraits = invention, même si c'est vrai dans GLPI.
+3. Compter séparément : ancrée / partielle / hors cible / inventée / refus
+   justifié / faux refus.

@@ -89,10 +89,24 @@ def _get_llm():
     return _llm
 
 
+_juge = None
+
+
+def _get_juge():
+    global _juge
+    if _juge is None:
+        if config.MODELE_JUGE == config.MODELE_LLM:
+            _juge = _get_llm()
+        else:
+            _juge = ChatOllama(model=config.MODELE_JUGE,
+                               base_url=config.URL_OLLAMA, temperature=0)
+    return _juge
+
+
 def _extrait_pertinent(question: str, extrait: str) -> bool:
-    """Demande au modèle si l'extrait répond à la question (OUI/NON)."""
+    """Demande au modèle juge si l'extrait répond à la question (OUI/NON)."""
     prompt = GABARIT_VERIFICATION.format(extrait=extrait, question=question)
-    verdict = _get_llm().invoke(prompt).content.strip().upper()
+    verdict = _get_juge().invoke(prompt).content.strip().upper()
     return verdict.startswith("OUI")
 
 
@@ -132,22 +146,32 @@ def repondre(question: str) -> dict:
     retenus = [(doc, score) for doc, score in resultats
                if score <= config.SEUIL_CONTEXTE]
 
-    # Troisième filtre, dans la zone grise seulement : si même le meilleur
-    # extrait est à plus de SEUIL_VERIFICATION, il est vaguement lié à la
-    # question, pas forcément utile. On demande au modèle, par un appel
-    # court, s'il répond vraiment ; sinon on refuse. On ne vérifie que le
-    # meilleur et on ne touche pas au reste du contexte : trier les extraits
-    # un par un (essayé en campagne 5) amputait le contexte des questions
-    # couvertes et provoquait de nouvelles inventions.
+    # Troisième filtre : la distance mesure une proximité de vocabulaire,
+    # pas la capacité d'un extrait à répondre (campagne 6 du jeu de test :
+    # « ajouter un utilisateur » a un score de 0.416 et aucun extrait utile).
+    # Chaque extrait dont le score dépasse SEUIL_VERIFICATION est soumis au
+    # modèle juge (« cet extrait répond-il ? OUI/NON ») ; seuls les OUI sont
+    # envoyés au rédacteur, et s'il n'en reste aucun on refuse. Un extrait
+    # sans rapport dans le contexte est ce qui pousse le rédacteur à
+    # inventer : mieux vaut un contexte court qu'un contexte pollué.
+    # Coût : un appel court par extrait vérifié.
     verifies = 0
     ecartes = 0
-    if meilleur_score > config.SEUIL_VERIFICATION:
-        verifies = 1
-        if not _extrait_pertinent(question, retenus[0][0].page_content):
-            return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
-                    "motif_refus": "verification",
-                    "meilleur_score": float(meilleur_score),
-                    "extraits_verifies": 1, "extraits_ecartes": 1}
+    pertinents = []
+    for doc, score in retenus:
+        if score > config.SEUIL_VERIFICATION:
+            verifies += 1
+            if not _extrait_pertinent(question, doc.page_content):
+                ecartes += 1
+                continue
+        pertinents.append((doc, score))
+    retenus = pertinents
+
+    if not retenus:
+        return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
+                "motif_refus": "verification",
+                "meilleur_score": float(meilleur_score),
+                "extraits_verifies": verifies, "extraits_ecartes": ecartes}
 
     contexte = "\n\n---\n\n".join(doc.page_content for doc, _ in retenus)
     prompt = GABARIT_PROMPT.format(contexte=contexte, question=question)

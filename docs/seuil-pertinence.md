@@ -110,6 +110,14 @@ questions couvertes sur 10 refusées, et un effet de bord : le seuil filtre
 de justesse n'a plus qu'un extrait de contexte et sa réponse se dégrade.
 **0.65 maintenu.**
 
+Limite du seuil mise en évidence le 21/09/2026 (campagne 6) : la distance
+mesure une proximité de *vocabulaire*, pas la capacité d'un extrait à
+répondre. « Comment ajouter un utilisateur ? » obtient 0.416 avec quatre
+extraits sans aucun rapport (inventaire, formulaires, raccourcis clavier).
+Le seuil écarte le hors sujet franc ; il ne peut pas garantir que ce qui
+passe est utile. C'est le rôle de la vérification extrait par extrait
+(`SEUIL_VERIFICATION`), activée par défaut depuis.
+
 Les deux rôles ont depuis été séparés (campagne 4) : `SEUIL_PERTINENCE`
 décide de répondre ou non sur le meilleur extrait, `SEUIL_CONTEXTE` décide
 quels extraits suivants sont envoyés au modèle. Vérifié : à 0.55 / 0.65,
