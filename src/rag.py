@@ -40,6 +40,18 @@ Question : {question}
 
 Réponse :"""
 
+# Vérification extrait / question, pour la zone grise du seuil. Question
+# fermée, réponse en un mot : appel court, et facile à interpréter.
+GABARIT_VERIFICATION = """Voici un extrait de documentation et une question.
+
+Extrait :
+{extrait}
+
+Question : {question}
+
+L'extrait contient-il des informations qui répondent à cette question, même
+partiellement ? Réponds uniquement par OUI ou par NON."""
+
 MESSAGE_REFUS = (
     "Je n'ai pas trouvé d'information suffisamment proche de votre question "
     "dans la documentation. Je préfère ne pas répondre plutôt que de vous "
@@ -77,11 +89,20 @@ def _get_llm():
     return _llm
 
 
+def _extrait_pertinent(question: str, extrait: str) -> bool:
+    """Demande au modèle si l'extrait répond à la question (OUI/NON)."""
+    prompt = GABARIT_VERIFICATION.format(extrait=extrait, question=question)
+    verdict = _get_llm().invoke(prompt).content.strip().upper()
+    return verdict.startswith("OUI")
+
+
 def repondre(question: str) -> dict:
     """Renvoie {reponse, sources, refus, motif_refus, meilleur_score}.
 
-    motif_refus : "seuil" (aucun extrait assez proche), "modele" (extraits
-    proches mais le modèle a jugé qu'ils ne répondent pas), ou None.
+    motif_refus : "seuil" (meilleur extrait trop loin), "verification" (les
+    extraits de la zone grise ont tous été jugés hors sujet un par un),
+    "modele" (le modèle a jugé, en rédigeant, que le contexte ne répond pas),
+    ou None.
     """
     resultats = _get_base().similarity_search_with_score(
         question, k=config.NOMBRE_EXTRAITS
@@ -89,7 +110,8 @@ def repondre(question: str) -> dict:
 
     if not resultats:
         return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
-                "motif_refus": "seuil", "meilleur_score": None}
+                "motif_refus": "seuil", "meilleur_score": None,
+                "extraits_verifies": 0, "extraits_ecartes": 0}
 
     # ATTENTION : ici le score est une DISTANCE. Plus il est bas, plus
     # l'extrait est proche de la question.
@@ -99,7 +121,8 @@ def repondre(question: str) -> dict:
         # Même le meilleur extrait est trop loin : on refuse plutôt que
         # d'halluciner.
         return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
-                "motif_refus": "seuil", "meilleur_score": float(meilleur_score)}
+                "motif_refus": "seuil", "meilleur_score": float(meilleur_score),
+                "extraits_verifies": 0, "extraits_ecartes": 0}
 
     # Deux seuils distincts : SEUIL_PERTINENCE décide si on répond (sur le
     # meilleur extrait), SEUIL_CONTEXTE décide quels extraits suivants
@@ -108,6 +131,23 @@ def repondre(question: str) -> dict:
     # dégradait (campagne 3 du jeu de test).
     retenus = [(doc, score) for doc, score in resultats
                if score <= config.SEUIL_CONTEXTE]
+
+    # Troisième filtre, dans la zone grise seulement : si même le meilleur
+    # extrait est à plus de SEUIL_VERIFICATION, il est vaguement lié à la
+    # question, pas forcément utile. On demande au modèle, par un appel
+    # court, s'il répond vraiment ; sinon on refuse. On ne vérifie que le
+    # meilleur et on ne touche pas au reste du contexte : trier les extraits
+    # un par un (essayé en campagne 5) amputait le contexte des questions
+    # couvertes et provoquait de nouvelles inventions.
+    verifies = 0
+    ecartes = 0
+    if meilleur_score > config.SEUIL_VERIFICATION:
+        verifies = 1
+        if not _extrait_pertinent(question, retenus[0][0].page_content):
+            return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
+                    "motif_refus": "verification",
+                    "meilleur_score": float(meilleur_score),
+                    "extraits_verifies": 1, "extraits_ecartes": 1}
 
     contexte = "\n\n---\n\n".join(doc.page_content for doc, _ in retenus)
     prompt = GABARIT_PROMPT.format(contexte=contexte, question=question)
@@ -119,7 +159,8 @@ def repondre(question: str) -> dict:
     if MARQUEUR_HORS_CONTEXTE in reponse.upper():
         return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
                 "motif_refus": "modele",
-                "meilleur_score": float(meilleur_score)}
+                "meilleur_score": float(meilleur_score),
+                "extraits_verifies": verifies, "extraits_ecartes": ecartes}
 
     sources = []
     deja_vues = set()
@@ -139,7 +180,8 @@ def repondre(question: str) -> dict:
         sources.append(source)
 
     return {"reponse": reponse, "sources": sources, "refus": False,
-            "motif_refus": None, "meilleur_score": float(meilleur_score)}
+            "motif_refus": None, "meilleur_score": float(meilleur_score),
+            "extraits_verifies": verifies, "extraits_ecartes": ecartes}
 
 
 if __name__ == "__main__":

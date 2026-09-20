@@ -52,6 +52,14 @@ SEUIL_PERTINENCE = float(os.getenv("SEUIL_PERTINENCE", "0.65"))
 # priver de contexte les questions acceptées.
 SEUIL_CONTEXTE = max(float(os.getenv("SEUIL_CONTEXTE", "0.65")), SEUIL_PERTINENCE)
 
+# Zone grise : si le meilleur extrait est au-dessus de cette distance, on
+# demande au modèle, par un appel court, s'il répond vraiment à la question
+# (OUI/NON) avant de rédiger ; sinon on refuse. Désactivé par défaut (valeur
+# >= SEUIL_CONTEXTE) : avec mistral 7B comme juge, la campagne 5 du jeu de
+# test a montré autant de faux refus que d'inventions évitées. À réactiver
+# (ex. 0.55) avec un modèle plus fiable ou un corpus plus large.
+SEUIL_VERIFICATION = float(os.getenv("SEUIL_VERIFICATION", "0.65"))
+
 # --- GLPI (facultatif) -----------------------------------------------------
 # Si GLPI_URL et GLPI_APP_TOKEN sont renseignés :
 #  - les utilisateurs se connectent au chatbot avec leurs identifiants GLPI ;

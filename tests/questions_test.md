@@ -238,8 +238,80 @@ plus bas, `SEUIL_CONTEXTE` évitera d'appauvrir les réponses acceptées.
 
 Il reste une invention connue (C4, « migrer GLPI », 0.573) que ni le prompt
 ni un seuil raisonnable ne traitent sans sacrifier des questions couvertes.
-La piste 3 (vérifier, par un appel supplémentaire au modèle, que l'extrait
-répond bien à la question avant de rédiger) est la seule qui cible ce cas.
+La piste 3 a été testée ensuite (campagne 5).
+
+## Campagne 5 — piste 3 : vérification extrait / question (20/09/2026)
+
+Ajout dans `src/rag.py` : dans la zone grise (score > `SEUIL_VERIFICATION`,
+0.55 pour la campagne), un appel court au modèle demande « cet extrait
+contient-il de quoi répondre, même partiellement ? OUI ou NON ». Refus avec
+`motif_refus = "verification"` si la réponse est NON. Seuils 0.65 / 0.65,
+prompt v2. Deux variantes :
+
+**5a — chaque extrait de la zone grise est vérifié, les NON sont écartés
+du contexte.**
+
+| # | Question | Score | Vérifiés / écartés | Résultat |
+|---|---|---|---|---|
+| A7 | Comment importer des données depuis un fichier CSV ? | 0.554 | 4 / 3 | **Nouvelle invention** : avec le seul extrait restant, « pas de mention… cependant, dans Microsoft Excel vous pouvez… » |
+| A8 | Comment fonctionne le plugin FusionInventory ? | 0.608 | 4 / 4 | Faux refus (vérification) |
+| A10 | Comment gérer l'inventaire du parc informatique ? | 0.627 | 4 / 3 | Partielle, source différente (p. 477 au lieu de 339) |
+| C1 | Comment réinitialiser mon mot de passe Windows ? | 0.591 | 2 / 2 | **Refus** (vérification) |
+| C4 | Comment migrer GLPI vers un autre serveur ? | 0.573 | 2 / 2 | **Refus** (vérification) — le cas visé |
+
+Bilan 5a : 1 invention / 12 réponses, 1 faux refus. C4 réglée, mais
+l'invention s'est déplacée sur A7 : écarter des extraits ampute le contexte,
+et un contexte maigre est exactement ce qui déclenche le « cependant ».
+
+**5b — seul le meilleur extrait est vérifié ; il décide de répondre ou
+refuser, le reste du contexte est conservé.**
+
+| # | Question | Score | Résultat |
+|---|---|---|---|
+| A7 | Comment importer des données depuis un fichier CSV ? | 0.554 | **Faux refus** : le vérificateur dit NON à l'extrait p. 40… auquel il avait dit **OUI** en 5a |
+| A8 | Comment fonctionne le plugin FusionInventory ? | 0.608 | Faux refus |
+| A10 | Comment gérer l'inventaire du parc informatique ? | 0.627 | Faux refus |
+| C1, C4 | | | **Refus** (vérification) |
+
+Bilan 5b : **0 invention / 8 réponses, 3 faux refus**.
+
+| Réglage | Inventions | Faux refus (A) | Réponses fournies |
+|---|---|---|---|
+| 0.65, prompt v2 (campagne 2) | 1 / 11 | 1 / 10 | 11 / 25 |
+| + vérification 5a (par extrait) | 1 / 12 | 1 / 10 | 12 / 25 |
+| + vérification 5b (meilleur extrait) | **0 / 8** | **3 / 10** | 8 / 25 |
+
+Ce que ça montre :
+
+- La vérification traite bien le cas visé (C4) : c'est le seul filtre qui
+  y arrive sans baisser le seuil.
+- Mais **Mistral 7B n'est pas un juge fiable** sur une question fermée :
+  il écarte des extraits pertinents (A8, A10), et il n'est pas cohérent
+  avec lui-même (A7, p. 40 : OUI en 5a, NON en 5b). Les cas qu'on lui
+  soumet sont précisément les cas limites, ceux où il hésite.
+- Résultat net : la vérification échange des inventions contre des faux
+  refus, comme un seuil plus bas, avec un appel de plus (1 à 2 s).
+
+**Décision** : mécanisme conservé mais **désactivé par défaut**
+(`SEUIL_VERIFICATION=0.65`, soit ≥ `SEUIL_CONTEXTE`). Il aura du sens avec
+un modèle juge plus fiable (un modèle plus gros, ou un modèle dédié à la
+classification), ou quand le corpus sera plus large. Réactivation : une
+valeur dans `.env`, par exemple `0.55`.
+
+## Bilan général des cinq campagnes
+
+Sur ce corpus (un document, 767 morceaux) et avec Mistral 7B, **aucun
+réglage n'atteint zéro invention sans refuser des questions couvertes**. Le
+compromis retenu — seuil 0.65, prompt v2, vérification désactivée — donne
+1 invention connue sur 11 réponses et 1 faux refus sur 10 questions
+couvertes. Les trois leviers restent disponibles dans `.env` et le jeu de
+test permet de remesurer en quelques minutes à chaque changement de corpus
+ou de modèle.
+
+Ce que la campagne apporte de plus durable que les chiffres : les refus
+sont maintenant **détectables** (`motif_refus`), donc l'utilisateur se voit
+proposer un ticket GLPI dans tous les cas où le chatbot ne répond pas — y
+compris les faux refus, qui deviennent une gêne plutôt qu'une impasse.
 
 
 ## Reproduire la campagne

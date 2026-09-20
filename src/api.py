@@ -167,6 +167,8 @@ def ask(payload: Question, chatbot_session: str | None = Cookie(default=None)):
         question=question,
         refus=resultat["refus"],
         motif_refus=resultat["motif_refus"],
+        extraits_verifies=resultat["extraits_verifies"],
+        extraits_ecartes=resultat["extraits_ecartes"],
         meilleur_score=resultat["meilleur_score"],
         seuil=config.SEUIL_PERTINENCE,
         sources=[{"document": s["document"], "page": s["page"],
