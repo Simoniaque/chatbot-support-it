@@ -44,4 +44,4 @@ NOMBRE_EXTRAITS = int(os.getenv("NOMBRE_EXTRAITS", "4"))
 #   - seuil trop bas  -> le bot refuse de répondre trop souvent
 #   - seuil trop haut -> il répond à partir d'extraits hors sujet (hallucination)
 # Valeur à justifier dans docs/seuil-pertinence.md, mesures à l'appui.
-SEUIL_PERTINENCE = float(os.getenv("SEUIL_PERTINENCE", "1.0"))
+SEUIL_PERTINENCE = float(os.getenv("SEUIL_PERTINENCE", "0.65"))

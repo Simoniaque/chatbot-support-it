@@ -15,6 +15,8 @@
   button:disabled { background: #9aa8d6; cursor: default; }
   #reponse { white-space: pre-wrap; background: #f5f6f8; padding: 16px;
              border-radius: 8px; }
+  #reponse.refus { background: #fff4e5; border-left: 3px solid #e8a33d; }
+  #reponse.erreur { background: #fdecec; border-left: 3px solid #d9534f; }
   .sources { margin-top: 20px; font-size: 0.9rem; color: #444; }
   .source { border-left: 3px solid #2b5cff; padding-left: 10px; margin: 10px 0; }
 </style>
@@ -36,9 +38,21 @@ const bouton = document.getElementById('envoyer');
 const zoneReponse = document.getElementById('reponse');
 const zoneSources = document.getElementById('sources');
 
+// Les extraits viennent des PDF : ils peuvent contenir < > & qui casseraient
+// la page (ou y injecteraient du code) s'ils étaient insérés en HTML brut.
+function echapper(texte) {
+  return String(texte)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 formulaire.addEventListener('submit', async (evenement) => {
   evenement.preventDefault();
+  const question = champ.value.trim();
+  if (!question) return;
+
   bouton.disabled = true;
+  zoneReponse.className = '';
   zoneReponse.textContent = 'Recherche en cours...';
   zoneSources.innerHTML = '';
 
@@ -47,21 +61,33 @@ formulaire.addEventListener('submit', async (evenement) => {
     const reponseHttp = await fetch('/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: champ.value })
+      body: JSON.stringify({ question })
     });
+
+    if (!reponseHttp.ok) {
+      // L'API renvoie {"detail": "..."} sur une erreur (422, 503...).
+      let detail = 'HTTP ' + reponseHttp.status;
+      try { detail = (await reponseHttp.json()).detail || detail; } catch (_) {}
+      zoneReponse.className = 'erreur';
+      zoneReponse.textContent = 'Erreur : ' + (typeof detail === 'string' ? detail : JSON.stringify(detail));
+      return;
+    }
+
     const donnees = await reponseHttp.json();
+    zoneReponse.className = donnees.refus ? 'refus' : '';
     zoneReponse.textContent = donnees.reponse;
 
     if (donnees.sources && donnees.sources.length) {
       zoneSources.innerHTML = '<strong>Sources :</strong>' +
         donnees.sources.map(s => `
           <div class="source">
-            <div><b>${s.document}</b>${s.page !== null && s.page !== undefined ? ' — page ' + (s.page + 1) : ''}
-                 <span style="color:#888">(score ${s.score})</span></div>
-            <div>${s.extrait}</div>
+            <div><b>${echapper(s.document)}</b>${s.page !== null && s.page !== undefined ? ' — page ' + (s.page + 1) : ''}
+                 <span style="color:#888">(score ${echapper(s.score)})</span></div>
+            <div>${echapper(s.extrait)}</div>
           </div>`).join('');
     }
   } catch (erreur) {
+    zoneReponse.className = 'erreur';
     zoneReponse.textContent = 'Erreur : le serveur ne répond pas. ' + erreur;
   } finally {
     bouton.disabled = false;

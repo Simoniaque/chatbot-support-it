@@ -86,18 +86,25 @@ def repondre(question: str) -> dict:
 
     contexte = "\n\n---\n\n".join(doc.page_content for doc, _ in retenus)
     prompt = GABARIT_PROMPT.format(contexte=contexte, question=question)
-    reponse = _get_llm().invoke(prompt).content
+    # Mistral commence souvent sa réponse par un espace ou un saut de ligne.
+    reponse = _get_llm().invoke(prompt).content.strip()
 
     sources = []
+    deja_vues = set()
     for doc, score in retenus:
+        cle = (doc.metadata.get("source"), doc.metadata.get("page"))
+        if cle in deja_vues:
+            continue  # même page déjà citée par un extrait plus proche
+        deja_vues.add(cle)
         source = {
             "document": doc.metadata.get("source", "inconnu"),
             "page": doc.metadata.get("page"),
             "score": round(float(score), 3),
-            "extrait": doc.page_content[:300] + "...",
+            "extrait": (doc.page_content[:300] + "..."
+                        if len(doc.page_content) > 300
+                        else doc.page_content),
         }
-        if source not in sources:
-            sources.append(source)
+        sources.append(source)
 
     return {"reponse": reponse, "sources": sources, "refus": False,
             "meilleur_score": float(meilleur_score)}

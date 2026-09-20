@@ -25,3 +25,7 @@ logs/
 Thumbs.db
 .idea/
 .vscode/
+
+# Fichiers propres à Claude Code (instructions et lancement) : pas utiles au projet.
+CLAUDE.md
+.claude/
