@@ -94,9 +94,15 @@ les questions couvertes situées dans la même zone (0.554 à 0.627) ont reçu
 les réponses les plus faibles de la campagne.
 
 Conclusion provisoire : 0.65 est correct pour séparer le hors sujet franc,
-mais la zone 0.55–0.65 est peu fiable. Les pistes (prompt plus strict,
-seuil à 0.55, vérification extrait/question) sont listées dans
-`tests/questions_test.md` et restent à trancher sur un corpus plus large.
+mais la zone 0.55–0.65 est peu fiable.
+
+Second filtre ajouté le même jour (campagne 2 de `tests/questions_test.md`) :
+le modèle doit répondre `HORS_CONTEXTE` quand les extraits ne parlent pas du
+sujet, ce que le code transforme en refus (`motif_refus = "modele"`). Cela a
+réglé le cas « mot de passe Windows » (0.591) mais pas « migration » (0.573) :
+quand l'extrait retenu est vaguement lié, le modèle rédige quand même. Ce
+cas-là relève du seuil (0.55 le refuserait) ou d'une vérification
+extrait/question avant génération ; à trancher sur un corpus plus large.
 
 ### Reproduire la mesure
 

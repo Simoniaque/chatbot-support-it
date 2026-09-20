@@ -305,7 +305,7 @@ développement.
 **En cours**
 
 - Enrichissement du corpus documentaire
-- Réduction du taux d'invention sur les questions limites (2/16 mesuré, voir `tests/questions_test.md`)
+- Réduction du taux d'invention sur les questions limites (1/11 après durcissement du prompt, voir `tests/questions_test.md`)
 - Rédaction de `docs/choix-techniques.md`
 
 **À planifier**

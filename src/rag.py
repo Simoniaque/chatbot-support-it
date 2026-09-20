@@ -11,13 +11,27 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 from src import config
 
+# Mot-clé que le modèle doit renvoyer, seul, quand le contexte ne répond pas
+# à la question. Le code le détecte et le transforme en refus. Plus fiable
+# qu'une consigne en langage naturel : la campagne du 20/09/2026 a montré que
+# « dis-le clairement et n'invente rien » n'empêche pas Mistral d'enchaîner
+# par « Cependant, voici comment faire... » avec ses propres connaissances.
+MARQUEUR_HORS_CONTEXTE = "HORS_CONTEXTE"
+
 # Consigne donnée au modèle. C'est elle qui l'empêche d'inventer :
 # on lui interdit explicitement de sortir du contexte fourni.
 GABARIT_PROMPT = """Tu es un assistant de support informatique interne.
 
-Réponds à la question en t'appuyant UNIQUEMENT sur le contexte ci-dessous.
-Si le contexte ne permet pas de répondre, dis-le clairement et n'invente rien.
-Réponds en français, de façon concise et concrète.
+Règles, dans l'ordre :
+1. Tu réponds UNIQUEMENT à partir du contexte ci-dessous. Tes connaissances
+   générales ne comptent pas : si une information n'est pas dans le contexte,
+   elle n'existe pas. N'invente jamais de commande, de menu ou d'étape.
+2. Si le contexte contient de quoi répondre, même partiellement, réponds en
+   français, de façon concise et concrète, avec ce que dit le contexte et
+   rien de plus.
+3. Si le contexte ne parle pas du tout du sujet de la question, ta réponse
+   est exactement le mot HORS_CONTEXTE, et rien d'autre : pas d'explication,
+   pas de conseil général, pas de « cependant ».
 
 Contexte :
 {contexte}
@@ -64,14 +78,18 @@ def _get_llm():
 
 
 def repondre(question: str) -> dict:
-    """Renvoie {reponse, sources, refus, meilleur_score}."""
+    """Renvoie {reponse, sources, refus, motif_refus, meilleur_score}.
+
+    motif_refus : "seuil" (aucun extrait assez proche), "modele" (extraits
+    proches mais le modèle a jugé qu'ils ne répondent pas), ou None.
+    """
     resultats = _get_base().similarity_search_with_score(
         question, k=config.NOMBRE_EXTRAITS
     )
 
     if not resultats:
         return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
-                "meilleur_score": None}
+                "motif_refus": "seuil", "meilleur_score": None}
 
     # ATTENTION : ici le score est une DISTANCE. Plus il est bas, plus
     # l'extrait est proche de la question.
@@ -82,12 +100,19 @@ def repondre(question: str) -> dict:
     if not retenus:
         # Aucun extrait assez proche : on refuse plutôt que d'halluciner.
         return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
-                "meilleur_score": float(meilleur_score)}
+                "motif_refus": "seuil", "meilleur_score": float(meilleur_score)}
 
     contexte = "\n\n---\n\n".join(doc.page_content for doc, _ in retenus)
     prompt = GABARIT_PROMPT.format(contexte=contexte, question=question)
     # Mistral commence souvent sa réponse par un espace ou un saut de ligne.
     reponse = _get_llm().invoke(prompt).content.strip()
+
+    # Second filtre, après le seuil : le modèle a jugé que les extraits
+    # (pourtant assez proches) ne répondent pas à la question.
+    if MARQUEUR_HORS_CONTEXTE in reponse.upper():
+        return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
+                "motif_refus": "modele",
+                "meilleur_score": float(meilleur_score)}
 
     sources = []
     deja_vues = set()
@@ -107,7 +132,7 @@ def repondre(question: str) -> dict:
         sources.append(source)
 
     return {"reponse": reponse, "sources": sources, "refus": False,
-            "meilleur_score": float(meilleur_score)}
+            "motif_refus": None, "meilleur_score": float(meilleur_score)}
 
 
 if __name__ == "__main__":

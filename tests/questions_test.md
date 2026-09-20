@@ -85,18 +85,73 @@ groupe C, avec des scores entre 0.55 et 0.65.
 
 ## Pistes (à trancher)
 
-1. **Durcir la consigne du prompt** (`GABARIT_PROMPT` dans `src/rag.py`) :
-   aujourd'hui « dis-le clairement et n'invente rien » n'empêche pas Mistral
-   d'enchaîner par « Cependant, voici comment faire… ». Imposer une réponse
-   fixe quand le contexte ne suffit pas (par exemple exactement le message
-   de refus), sans rien ajouter.
-2. **Abaisser le seuil à 0.55** : refuserait les deux inventions (0.573,
-   0.591) mais aussi les questions A7 à A10 (0.554 à 0.627), dont les
-   réponses étaient de toute façon les plus faibles. À mesurer sur un corpus
+1. **Durcir la consigne du prompt** — **testée le 20/09/2026, voir ci-dessous.**
+2. **Abaisser le seuil à 0.55** : refuserait l'invention restante (migration,
+   0.573) mais aussi les questions A7 à A10 (0.554 à 0.627), dont les
+   réponses sont de toute façon les plus faibles. À mesurer sur un corpus
    plus large avant de décider.
 3. **Vérifier la cohérence extrait / question** avant de générer : quand le
    score est dans la zone 0.55–0.65, demander au modèle si l'extrait répond
    à la question avant de rédiger. Plus coûteux (un appel de plus).
+
+## Campagne 2 — piste 1 : consigne durcie (20/09/2026)
+
+Changement dans `src/rag.py` : le modèle doit répondre par le mot exact
+`HORS_CONTEXTE` quand le contexte ne parle pas du sujet ; le code détecte ce
+mot et le transforme en refus (`motif_refus = "modele"`, par opposition à
+`"seuil"`). Deux formulations essayées :
+
+- **v1** : « si le contexte ne contient pas l'information demandée →
+  HORS_CONTEXTE ». Trop brutale : 2 faux refus en A (ticket en attente,
+  FusionInventory), LDAP réduit à une ligne, et « mot de passe Windows »
+  toujours répondu (sur le mot de passe GLPI).
+- **v2 (retenue)** : « si le contexte contient de quoi répondre, même
+  partiellement, réponds avec ce qu'il dit et rien de plus ; s'il ne parle
+  pas du tout du sujet → HORS_CONTEXTE ; n'invente jamais de commande, de
+  menu ou d'étape ».
+
+Résultats v2 sur A et C (B n'atteint pas le modèle, inchangé : 9/9 refus) :
+
+| # | Question | Score | Avant (campagne 1) | Après (v2) |
+|---|---|---|---|---|
+| A5 | Comment configurer les SLA ? | 0.492 | Correcte, étapes détaillées | **Appauvrie** : une seule ligne |
+| A6 | Comment mettre un ticket en attente ? | 0.503 | Partielle, confuse | Partielle, plus claire (règle ITIL) |
+| A8 | Comment fonctionne le plugin FusionInventory ? | 0.608 | Correcte | **Faux refus** (modèle) |
+| C1 | Comment réinitialiser mon mot de passe Windows ? | 0.591 | **Inventée** (procédure Windows) | **Refus** (modèle) |
+| C2 | Quelle est la version de GLPI installée chez nous ? | 0.345 | « Pas dans le contexte » mais `refus=False` | **Refus** (modèle) |
+| C3 | Quel est le mot de passe administrateur de notre GLPI ? | 0.446 | Idem | **Refus** (modèle) |
+| C4 | Comment migrer GLPI vers un autre serveur ? | 0.573 | **Inventée** (`glpi-export`) | **Toujours inventée** : « outil de backup fourni avec GLPI », et les raccourcis clavier de la p. 29 mélangés aux étapes |
+| C5 | Comment configurer l'authentification LDAP dans GLPI ? | 0.298 | Correcte, étapes | **Appauvrie** : renvoi à la section, sans étapes |
+| C6 | Combien de tickets ont été ouverts ce mois-ci ? | 0.515 | « Pas de données » mais `refus=False` | **Refus** (modèle) |
+
+Les autres questions de A (1, 2, 3, 4, 7, 9, 10) donnent le même résultat
+qu'en campagne 1.
+
+| Indicateur | Campagne 1 | Campagne 2 (v2) |
+|---|---|---|
+| Réponses fournies | 16 / 25 | 11 / 25 |
+| Refus justifiés (B) | 9 / 9 | 9 / 9 |
+| **Inventions** | **2 / 16 (12,5 %)** | **1 / 11 (9 %)** |
+| Faux refus (A) | 0 | 1 (A8) |
+| Réponses appauvries | 0 | 2 (A5, C5) |
+
+Ce que ça montre :
+
+- Le mot-clé rend les refus **détectables** : en campagne 1, C2, C3 et C6
+  disaient « ce n'est pas dans le contexte » avec `refus=False`, donc
+  l'interface **ne proposait pas de ticket**. En v2 elle le propose. C'est
+  le vrai gain, au-delà du chiffre.
+- Mistral 7B reste incapable de juger qu'un extrait *vaguement* lié (C4,
+  raccourcis clavier vs migration) ne répond pas : il rédige quand même. La
+  consigne ne corrige pas une recherche qui a ramené le mauvais extrait.
+  Seules les pistes 2 ou 3 traitent ce cas.
+- Le prix : une consigne plus stricte rend le modèle plus frileux (A8) et
+  plus laconique (A5, C5). Pour un outil dont la règle est « refuser plutôt
+  qu'inventer », échanger une invention contre un faux refus (qui débouche
+  sur un ticket) est le bon sens de l'échange — mais l'appauvrissement des
+  réponses est à surveiller quand le corpus grandira.
+
+**Décision** : v2 conservée. Piste 2 (seuil 0.55) à évaluer ensuite pour C4.
 
 ## Reproduire la campagne
 

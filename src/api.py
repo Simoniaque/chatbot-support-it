@@ -166,6 +166,7 @@ def ask(payload: Question, chatbot_session: str | None = Cookie(default=None)):
         utilisateur=session["utilisateur"]["login"] if session else None,
         question=question,
         refus=resultat["refus"],
+        motif_refus=resultat["motif_refus"],
         meilleur_score=resultat["meilleur_score"],
         seuil=config.SEUIL_PERTINENCE,
         sources=[{"document": s["document"], "page": s["page"],
