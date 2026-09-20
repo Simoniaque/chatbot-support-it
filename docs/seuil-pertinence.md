@@ -108,9 +108,13 @@ Seuil à 0.55 essayé le même jour (campagne 3) : zéro invention, mais 4
 questions couvertes sur 10 refusées, et un effet de bord : le seuil filtre
 *tous* les extraits, pas seulement le meilleur, donc une question acceptée
 de justesse n'a plus qu'un extrait de contexte et sa réponse se dégrade.
-**0.65 maintenu.** Piste à creuser : deux seuils distincts, l'un pour
-refuser (sur le meilleur extrait), l'autre pour inclure les extraits
-suivants dans le contexte.
+**0.65 maintenu.**
+
+Les deux rôles ont depuis été séparés (campagne 4) : `SEUIL_PERTINENCE`
+décide de répondre ou non sur le meilleur extrait, `SEUIL_CONTEXTE` décide
+quels extraits suivants sont envoyés au modèle. Vérifié : à 0.55 / 0.65,
+les questions acceptées retrouvent leur contexte complet. Les deux valeurs
+restent à 0.65 tant que le corpus ne justifie pas un refus plus strict.
 
 ### Reproduire la mesure
 

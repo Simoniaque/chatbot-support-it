@@ -155,7 +155,8 @@ Tout se règle dans `.env`, sans toucher au code.
 | `TAILLE_CHUNK` | `1000` | Taille des morceaux, en caractères |
 | `CHEVAUCHEMENT_CHUNK` | `150` | Recouvrement entre deux morceaux consécutifs |
 | `NOMBRE_EXTRAITS` | `4` | Extraits envoyés au modèle par question |
-| `SEUIL_PERTINENCE` | `0.65` | Distance maximale acceptée (voir ci-dessous) |
+| `SEUIL_PERTINENCE` | `0.65` | Distance maximale du **meilleur** extrait pour répondre (voir ci-dessous) |
+| `SEUIL_CONTEXTE` | `0.65` | Distance maximale des extraits **suivants** inclus dans le contexte (≥ `SEUIL_PERTINENCE`) |
 | `GLPI_URL` | *(vide)* | Adresse de GLPI, sans `/apirest.php` (voir « Connexion et escalade vers GLPI ») |
 | `GLPI_APP_TOKEN` | *(vide)* | Jeton du client API GLPI |
 | `DUREE_SESSION_HEURES` | `8` | Durée d'une connexion au chatbot avant de devoir se reconnecter |
@@ -165,7 +166,10 @@ Tout se règle dans `.env`, sans toucher au code.
 
 Le réglage le plus important du projet. C'est une **distance** : plus la valeur
 est basse, plus l'extrait doit être proche de la question pour être retenu. Si
-aucun extrait ne passe sous le seuil, le chatbot refuse de répondre.
+le meilleur extrait est au-dessus du seuil, le chatbot refuse de répondre.
+`SEUIL_CONTEXTE` règle à part quels extraits suivants accompagnent le meilleur :
+on peut ainsi refuser plus strictement sans priver de contexte les questions
+acceptées.
 
 - Seuil trop bas → le bot bloque trop souvent, il devient inutilisable.
 - Seuil trop haut → il répond à partir d'extraits hors sujet, donc il invente.

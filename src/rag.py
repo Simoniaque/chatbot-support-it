@@ -94,13 +94,20 @@ def repondre(question: str) -> dict:
     # ATTENTION : ici le score est une DISTANCE. Plus il est bas, plus
     # l'extrait est proche de la question.
     meilleur_score = resultats[0][1]
-    retenus = [(doc, score) for doc, score in resultats
-               if score <= config.SEUIL_PERTINENCE]
 
-    if not retenus:
-        # Aucun extrait assez proche : on refuse plutôt que d'halluciner.
+    if meilleur_score > config.SEUIL_PERTINENCE:
+        # Même le meilleur extrait est trop loin : on refuse plutôt que
+        # d'halluciner.
         return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
                 "motif_refus": "seuil", "meilleur_score": float(meilleur_score)}
+
+    # Deux seuils distincts : SEUIL_PERTINENCE décide si on répond (sur le
+    # meilleur extrait), SEUIL_CONTEXTE décide quels extraits suivants
+    # accompagnent le meilleur. Avec un seul seuil, une question acceptée de
+    # justesse n'avait plus qu'un extrait de contexte et sa réponse se
+    # dégradait (campagne 3 du jeu de test).
+    retenus = [(doc, score) for doc, score in resultats
+               if score <= config.SEUIL_CONTEXTE]
 
     contexte = "\n\n---\n\n".join(doc.page_content for doc, _ in retenus)
     prompt = GABARIT_PROMPT.format(contexte=contexte, question=question)

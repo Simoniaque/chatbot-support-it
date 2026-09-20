@@ -46,6 +46,12 @@ NOMBRE_EXTRAITS = int(os.getenv("NOMBRE_EXTRAITS", "4"))
 # Valeur à justifier dans docs/seuil-pertinence.md, mesures à l'appui.
 SEUIL_PERTINENCE = float(os.getenv("SEUIL_PERTINENCE", "0.65"))
 
+# Seuil d'inclusion des extraits suivants dans le contexte, une fois la
+# question acceptée. Toujours >= SEUIL_PERTINENCE : le meilleur extrait est
+# forcément inclus. Permet de baisser SEUIL_PERTINENCE (refuser plus) sans
+# priver de contexte les questions acceptées.
+SEUIL_CONTEXTE = max(float(os.getenv("SEUIL_CONTEXTE", "0.65")), SEUIL_PERTINENCE)
+
 # --- GLPI (facultatif) -----------------------------------------------------
 # Si GLPI_URL et GLPI_APP_TOKEN sont renseignés :
 #  - les utilisateurs se connectent au chatbot avec leurs identifiants GLPI ;

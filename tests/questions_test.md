@@ -192,11 +192,54 @@ Ce que ça montre :
 ce corpus ; à réévaluer quand il sera plus large (les scores des questions
 couvertes baisseront si la documentation devient plus spécifique).
 
-**Piste 4, issue de l'effet de bord** : séparer les deux rôles du seuil.
-Un seuil de *refus* sur le meilleur extrait (par exemple 0.60), et un seuil
-d'*inclusion* plus large pour les extraits suivants (0.65), afin qu'une
-question acceptée garde tout son contexte. Ne règle pas C4 (0.573) mais
-rendrait un seuil de refus plus bas moins destructeur.
+**Piste 4, issue de l'effet de bord** : séparer les deux rôles du seuil —
+**testée, voir campagne 4.**
+
+## Campagne 4 — piste 4 : deux seuils (20/09/2026)
+
+Changement dans `src/rag.py` et `src/config.py` : `SEUIL_PERTINENCE` ne
+s'applique plus qu'au **meilleur** extrait (répondre ou refuser) ; un nouveau
+`SEUIL_CONTEXTE` (≥ `SEUIL_PERTINENCE`) décide quels extraits suivants
+accompagnent le meilleur dans le contexte envoyé au modèle. Avec les deux à
+0.65, le comportement est identique à avant.
+
+Campagne : `SEUIL_PERTINENCE=0.55`, `SEUIL_CONTEXTE=0.65`, prompt v2.
+
+| # | Question | Score | Campagne 3 (0.55 seul) | Campagne 4 (0.55 / 0.65) |
+|---|---|---|---|---|
+| A5 | Comment configurer les SLA ? | 0.492 | 1 extrait, réponse confuse (TTO/TTR) | **4 extraits**, réponse identique à la campagne 2 |
+| A6 | Comment mettre un ticket en attente ? | 0.503 | 2 extraits | **4 extraits**, réponse identique à la campagne 2 |
+| A7–A10 | (0.554 à 0.627) | | Faux refus (seuil) | Faux refus (seuil) — inchangé |
+| C1, C4 | mot de passe Windows, migration | 0.591, 0.573 | Refus (seuil) | Refus (seuil) — inchangé |
+
+Indicateurs identiques à la campagne 3 (0 invention, 4 faux refus, 7/25
+réponses) : la piste 4 corrige l'effet de bord de la campagne 3 (contexte
+amputé), pas le fond (le seuil de refus à 0.55 écarte 4 questions couvertes).
+
+Remarque de méthode : « créer un ticket » (A3) a exactement le même contexte
+en campagnes 2 et 4, mais une réponse différente (2 étapes → 1 ligne). Même
+à température 0, Ollama n'est pas parfaitement déterministe d'une exécution
+à l'autre. Un jugement « appauvrie » sur une seule question est donc à
+prendre avec cette marge ; seules les tendances sur plusieurs questions
+sont fiables.
+
+**Décision** : mécanisme conservé (deux réglages dans `.env`), valeurs
+laissées à **0.65 / 0.65**. Le jour où le corpus justifie un seuil de refus
+plus bas, `SEUIL_CONTEXTE` évitera d'appauvrir les réponses acceptées.
+
+## Synthèse des quatre campagnes
+
+| Réglage | Inventions | Faux refus (A) | Réponses fournies |
+|---|---|---|---|
+| 0.65, prompt initial | 2 / 16 | 0 / 10 | 16 / 25 |
+| 0.65, prompt v2 **(retenu)** | 1 / 11 | 1 / 10 | 11 / 25 |
+| 0.55, prompt v2 | 0 / 7 | 4 / 10 | 7 / 25 |
+| 0.55 / contexte 0.65, prompt v2 | 0 / 7 | 4 / 10 | 7 / 25 |
+
+Il reste une invention connue (C4, « migrer GLPI », 0.573) que ni le prompt
+ni un seuil raisonnable ne traitent sans sacrifier des questions couvertes.
+La piste 3 (vérifier, par un appel supplémentaire au modèle, que l'extrait
+répond bien à la question avant de rédiger) est la seule qui cible ce cas.
 
 
 ## Reproduire la campagne
