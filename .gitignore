@@ -1,0 +1,27 @@
+# Environnement Python : recréable avec requirements.txt, et très lourd.
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Base vectorielle générée : se régénère avec `python -m src.ingestion`.
+chroma_db/
+*.sqlite3
+
+# Configuration locale : peut contenir des identifiants (GLPI plus tard).
+.env
+
+# Corpus documentaire : contient des procédures internes, ne doit pas être
+# publié. Le dossier reste présent dans le dépôt, mais vide.
+data/corpus/*
+!data/corpus/.gitkeep
+
+# Journaux d'échanges : contiennent les questions réelles des utilisateurs.
+logs/
+*.log
+
+# Système et éditeurs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

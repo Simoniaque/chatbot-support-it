@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Chatbot Support IT</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto;
+         padding: 0 16px; line-height: 1.5; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  form { display: flex; gap: 8px; margin-bottom: 24px; }
+  input { flex: 1; padding: 10px; font-size: 1rem; border: 1px solid #ccc;
+          border-radius: 6px; }
+  button { padding: 10px 18px; font-size: 1rem; border: 0; border-radius: 6px;
+           background: #2b5cff; color: #fff; cursor: pointer; }
+  button:disabled { background: #9aa8d6; cursor: default; }
+  #reponse { white-space: pre-wrap; background: #f5f6f8; padding: 16px;
+             border-radius: 8px; }
+  .sources { margin-top: 20px; font-size: 0.9rem; color: #444; }
+  .source { border-left: 3px solid #2b5cff; padding-left: 10px; margin: 10px 0; }
+</style>
+</head>
+<body>
+  <h1>Chatbot de support informatique</h1>
+  <form id="formulaire">
+    <input id="question" placeholder="Posez votre question..." autocomplete="off" required>
+    <button id="envoyer" type="submit">Envoyer</button>
+  </form>
+
+  <div id="reponse"></div>
+  <div class="sources" id="sources"></div>
+
+<script>
+const formulaire = document.getElementById('formulaire');
+const champ = document.getElementById('question');
+const bouton = document.getElementById('envoyer');
+const zoneReponse = document.getElementById('reponse');
+const zoneSources = document.getElementById('sources');
+
+formulaire.addEventListener('submit', async (evenement) => {
+  evenement.preventDefault();
+  bouton.disabled = true;
+  zoneReponse.textContent = 'Recherche en cours...';
+  zoneSources.innerHTML = '';
+
+  try {
+    // Appel de l'API définie dans src/api.py
+    const reponseHttp = await fetch('/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: champ.value })
+    });
+    const donnees = await reponseHttp.json();
+    zoneReponse.textContent = donnees.reponse;
+
+    if (donnees.sources && donnees.sources.length) {
+      zoneSources.innerHTML = '<strong>Sources :</strong>' +
+        donnees.sources.map(s => `
+          <div class="source">
+            <div><b>${s.document}</b>${s.page !== null && s.page !== undefined ? ' — page ' + (s.page + 1) : ''}
+                 <span style="color:#888">(score ${s.score})</span></div>
+            <div>${s.extrait}</div>
+          </div>`).join('');
+    }
+  } catch (erreur) {
+    zoneReponse.textContent = 'Erreur : le serveur ne répond pas. ' + erreur;
+  } finally {
+    bouton.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
