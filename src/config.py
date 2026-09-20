@@ -47,15 +47,19 @@ NOMBRE_EXTRAITS = int(os.getenv("NOMBRE_EXTRAITS", "4"))
 SEUIL_PERTINENCE = float(os.getenv("SEUIL_PERTINENCE", "0.65"))
 
 # --- GLPI (facultatif) -----------------------------------------------------
-# Si les trois valeurs sont renseignées, l'interface propose de créer un
-# ticket GLPI quand le chatbot ne trouve pas de réponse. Sinon, la fonction
-# est simplement désactivée : le reste du chatbot marche sans GLPI.
-#   GLPI_URL        : adresse de GLPI, sans /apirest.php (ex. http://glpi.local/glpi)
-#   GLPI_APP_TOKEN  : jeton du client API (Configuration > Générale > API)
-#   GLPI_USER_TOKEN : jeton personnel de l'utilisateur qui créera les tickets
+# Si GLPI_URL et GLPI_APP_TOKEN sont renseignés :
+#  - les utilisateurs se connectent au chatbot avec leurs identifiants GLPI ;
+#  - quand le chatbot ne trouve pas de réponse, il propose de créer un ticket
+#    GLPI, au nom de l'utilisateur connecté.
+# Sinon, pas de connexion : le chatbot est utilisable anonymement, sans ticket.
+#   GLPI_URL       : adresse de GLPI, sans /apirest.php (ex. http://glpi.local/glpi)
+#   GLPI_APP_TOKEN : jeton du client API (Configuration > Générale > API)
 GLPI_URL = os.getenv("GLPI_URL", "").strip()
 GLPI_APP_TOKEN = os.getenv("GLPI_APP_TOKEN", "").strip()
-GLPI_USER_TOKEN = os.getenv("GLPI_USER_TOKEN", "").strip()
+
+# Durée de vie d'une connexion au chatbot, en heures. Au-delà, l'utilisateur
+# doit se reconnecter (GLPI a aussi sa propre expiration de session).
+DUREE_SESSION_HEURES = float(os.getenv("DUREE_SESSION_HEURES", "8"))
 
 # --- Journalisation --------------------------------------------------------
 # Chaque question (extraits retenus, scores, réponse) est ajoutée à un fichier

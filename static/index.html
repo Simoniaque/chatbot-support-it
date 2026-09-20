@@ -6,83 +6,107 @@
 <style>
   body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto;
          padding: 0 16px; line-height: 1.5; color: #1a1a1a; }
-  h1 { font-size: 1.4rem; }
-  form { display: flex; gap: 8px; margin-bottom: 24px; }
-  input { flex: 1; padding: 10px; font-size: 1rem; border: 1px solid #ccc;
-          border-radius: 6px; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  header { display: flex; justify-content: space-between; align-items: center;
+           gap: 16px; margin-bottom: 24px; }
+  #identite { font-size: 0.9rem; color: #444; }
+  #identite button { padding: 4px 10px; font-size: 0.85rem; margin-left: 8px; }
+  [hidden] { display: none !important; }
+
+  form.question { display: flex; gap: 8px; margin-bottom: 24px; }
+  input, textarea { padding: 10px; font: inherit; font-size: 1rem;
+                    border: 1px solid #ccc; border-radius: 6px; }
+  form.question input { flex: 1; }
   button { padding: 10px 18px; font-size: 1rem; border: 0; border-radius: 6px;
            background: #2b5cff; color: #fff; cursor: pointer; }
   button:disabled { background: #9aa8d6; cursor: default; }
+  button.secondaire { background: #e8e8e8; color: #1a1a1a; }
+
   #reponse { white-space: pre-wrap; background: #f5f6f8; padding: 16px;
              border-radius: 8px; }
+  #reponse:empty { display: none; }
   #reponse.refus { background: #fff4e5; border-left: 3px solid #e8a33d; }
   #reponse.erreur { background: #fdecec; border-left: 3px solid #d9534f; }
   .sources { margin-top: 20px; font-size: 0.9rem; color: #444; }
   .source { border-left: 3px solid #2b5cff; padding-left: 10px; margin: 10px 0; }
+
+  /* Écran de connexion */
+  #connexion { max-width: 380px; margin: 40px auto; padding: 24px;
+               border: 1px solid #ddd; border-radius: 10px; }
+  #connexion h2 { font-size: 1.1rem; margin: 0 0 4px; }
+  #connexion p { margin: 0 0 16px; font-size: 0.9rem; color: #444; }
+  #connexion label { display: block; margin-top: 12px; font-size: 0.9rem; }
+  #connexion input { width: 100%; box-sizing: border-box; margin-top: 4px; }
+  #connexion button { width: 100%; margin-top: 18px; }
+  #connexion-erreur { color: #b00; font-size: 0.9rem; margin-top: 10px;
+                      min-height: 1.2em; }
+
+  /* Proposition de ticket */
   #ticket { margin-top: 20px; padding: 16px; border: 1px solid #e0c48a;
             background: #fffaf0; border-radius: 8px; }
-  #ticket[hidden] { display: none; }
   #ticket label { display: block; margin-top: 10px; font-size: 0.9rem; }
-  #ticket input, #ticket textarea { width: 100%; box-sizing: border-box;
-            padding: 8px; font: inherit; border: 1px solid #ccc; border-radius: 6px; }
-  #ticket textarea { min-height: 70px; resize: vertical; }
+  #ticket textarea { width: 100%; box-sizing: border-box; min-height: 70px;
+                     resize: vertical; margin-top: 4px; }
   #ticket .actions { display: flex; gap: 8px; margin-top: 12px; }
-  #ticket .secondaire { background: #e8e8e8; color: #1a1a1a; }
   #ticket .resultat { margin-top: 10px; }
 </style>
 </head>
 <body>
-  <h1>Chatbot de support informatique</h1>
-  <form id="formulaire">
-    <input id="question" placeholder="Posez votre question..." autocomplete="off" required>
-    <button id="envoyer" type="submit">Envoyer</button>
-  </form>
-
-  <div id="reponse"></div>
-  <div class="sources" id="sources"></div>
-
-  <!-- Proposition de ticket GLPI : affichée uniquement après un refus,
-       et seulement si GLPI est configuré côté serveur. -->
-  <div id="ticket" hidden>
-    <strong>Souhaitez-vous transmettre votre question au support ?</strong>
-    <p style="margin:6px 0 0; font-size:0.9rem; color:#444">
-      Un ticket GLPI sera créé avec votre question. Rien n'est envoyé tant que
-      vous ne cliquez pas sur « Créer le ticket ».
-    </p>
-    <label>Précisions (facultatif)
-      <textarea id="ticket-precisions" placeholder="Contexte, message d'erreur, ce que vous avez déjà essayé..."></textarea>
-    </label>
-    <label>Votre nom ou e-mail (facultatif)
-      <input id="ticket-demandeur" autocomplete="off">
-    </label>
-    <div class="actions">
-      <button type="button" id="ticket-creer">Créer le ticket</button>
-      <button type="button" id="ticket-annuler" class="secondaire">Non merci</button>
+  <header>
+    <h1>Chatbot de support informatique</h1>
+    <div id="identite" hidden>
+      Connecté : <b id="identite-nom"></b>
+      <button type="button" id="deconnexion" class="secondaire">Se déconnecter</button>
     </div>
-    <div class="resultat" id="ticket-resultat"></div>
-  </div>
+  </header>
+
+  <!-- Écran de connexion : affiché seulement si GLPI est configuré côté
+       serveur (l'authentification se fait avec les identifiants GLPI). -->
+  <section id="connexion" hidden>
+    <h2>Connexion</h2>
+    <p>Utilisez vos identifiants GLPI. Ils servent uniquement à vous identifier
+       auprès du support ; le chatbot ne les conserve pas.</p>
+    <form id="formulaire-connexion">
+      <label>Identifiant
+        <input id="login" autocomplete="username" required>
+      </label>
+      <label>Mot de passe
+        <input id="mot-de-passe" type="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" id="se-connecter">Se connecter</button>
+      <div id="connexion-erreur"></div>
+    </form>
+  </section>
+
+  <section id="chatbot" hidden>
+    <form id="formulaire" class="question">
+      <input id="question" placeholder="Posez votre question..." autocomplete="off" required>
+      <button id="envoyer" type="submit">Envoyer</button>
+    </form>
+
+    <div id="reponse"></div>
+    <div class="sources" id="sources"></div>
+
+    <!-- Proposition de ticket GLPI : affichée uniquement après un refus. -->
+    <div id="ticket" hidden>
+      <strong>Souhaitez-vous transmettre votre question au support ?</strong>
+      <p style="margin:6px 0 0; font-size:0.9rem; color:#444">
+        Un ticket GLPI sera créé à votre nom avec votre question. Rien n'est
+        envoyé tant que vous ne cliquez pas sur « Créer le ticket ».
+      </p>
+      <label>Précisions (facultatif)
+        <textarea id="ticket-precisions" placeholder="Contexte, message d'erreur, ce que vous avez déjà essayé..."></textarea>
+      </label>
+      <div class="actions">
+        <button type="button" id="ticket-creer">Créer le ticket</button>
+        <button type="button" id="ticket-annuler" class="secondaire">Non merci</button>
+      </div>
+      <div class="resultat" id="ticket-resultat"></div>
+    </div>
+  </section>
 
 <script>
-const formulaire = document.getElementById('formulaire');
-const champ = document.getElementById('question');
-const bouton = document.getElementById('envoyer');
-const zoneReponse = document.getElementById('reponse');
-const zoneSources = document.getElementById('sources');
-const encartTicket = document.getElementById('ticket');
-const champPrecisions = document.getElementById('ticket-precisions');
-const champDemandeur = document.getElementById('ticket-demandeur');
-const boutonCreer = document.getElementById('ticket-creer');
-const boutonAnnuler = document.getElementById('ticket-annuler');
-const resultatTicket = document.getElementById('ticket-resultat');
-
-// Dernière question ayant reçu un refus : c'est elle qui partira dans le ticket.
-let questionSansReponse = null;
-
-// GLPI est-il configuré côté serveur ? Lu une fois au chargement.
-let glpiDisponible = false;
-fetch('/sante').then(r => r.json())
-  .then(s => { glpiDisponible = !!s.glpi_configure; })
-  .catch(() => {});
+const $ = (id) => document.getElementById(id);
 
 // Les extraits viennent des PDF : ils peuvent contenir < > & qui casseraient
 // la page (ou y injecteraient du code) s'ils étaient insérés en HTML brut.
@@ -92,17 +116,112 @@ function echapper(texte) {
     .replace(/"/g, '&quot;');
 }
 
-formulaire.addEventListener('submit', async (evenement) => {
+// Lit le message d'erreur renvoyé par l'API ({"detail": "..."}).
+async function detailErreur(reponseHttp) {
+  try {
+    const d = (await reponseHttp.json()).detail;
+    return typeof d === 'string' ? d : JSON.stringify(d);
+  } catch (_) { return 'HTTP ' + reponseHttp.status; }
+}
+
+// --- État de connexion ---------------------------------------------------
+
+let connexionRequise = false;
+let glpiDisponible = false;
+
+function afficherConnecte(utilisateur) {
+  $('identite-nom').textContent = utilisateur.nom;
+  $('identite').hidden = false;
+  $('connexion').hidden = true;
+  $('chatbot').hidden = false;
+  $('question').focus();
+}
+
+function afficherConnexion(message) {
+  $('identite').hidden = true;
+  $('chatbot').hidden = true;
+  $('connexion').hidden = false;
+  $('connexion-erreur').textContent = message || '';
+  $('mot-de-passe').value = '';
+  $('login').focus();
+}
+
+// Au chargement : qui suis-je ? La connexion est requise seulement si le
+// serveur a GLPI configuré ; sinon usage anonyme.
+async function initialiser() {
+  try {
+    const moi = await (await fetch('/moi')).json();
+    connexionRequise = moi.connexion_requise;
+    glpiDisponible = moi.connexion_requise;
+    if (moi.utilisateur) afficherConnecte(moi.utilisateur);
+    else if (connexionRequise) afficherConnexion();
+    else $('chatbot').hidden = false;
+  } catch (_) {
+    $('chatbot').hidden = false;
+  }
+}
+initialiser();
+
+$('formulaire-connexion').addEventListener('submit', async (evenement) => {
   evenement.preventDefault();
-  const question = champ.value.trim();
+  $('se-connecter').disabled = true;
+  $('connexion-erreur').textContent = '';
+  try {
+    const reponseHttp = await fetch('/connexion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login: $('login').value.trim(),
+                             mot_de_passe: $('mot-de-passe').value })
+    });
+    if (!reponseHttp.ok) {
+      $('connexion-erreur').textContent = await detailErreur(reponseHttp);
+      $('mot-de-passe').value = '';
+      return;
+    }
+    afficherConnecte(await reponseHttp.json());
+  } catch (erreur) {
+    $('connexion-erreur').textContent = 'Le serveur ne répond pas. ' + erreur;
+  } finally {
+    $('se-connecter').disabled = false;
+  }
+});
+
+$('deconnexion').addEventListener('click', async () => {
+  try { await fetch('/deconnexion', { method: 'POST' }); } catch (_) {}
+  $('reponse').textContent = ''; $('reponse').className = '';
+  $('sources').innerHTML = ''; $('ticket').hidden = true;
+  afficherConnexion();
+});
+
+// Session expirée ou serveur redémarré : retour à l'écran de connexion.
+function gererDeconnecte(reponseHttp) {
+  if (reponseHttp.status === 401 && connexionRequise) {
+    afficherConnexion('Votre session a expiré, reconnectez-vous.');
+    return true;
+  }
+  return false;
+}
+
+// --- Questions -----------------------------------------------------------
+
+const zoneReponse = $('reponse');
+const zoneSources = $('sources');
+const encartTicket = $('ticket');
+
+// Dernière question ayant reçu un refus : c'est elle qui partira dans le ticket.
+let questionSansReponse = null;
+
+$('formulaire').addEventListener('submit', async (evenement) => {
+  evenement.preventDefault();
+  const question = $('question').value.trim();
   if (!question) return;
 
-  bouton.disabled = true;
+  $('envoyer').disabled = true;
   zoneReponse.className = '';
   zoneReponse.textContent = 'Recherche en cours...';
   zoneSources.innerHTML = '';
   encartTicket.hidden = true;
-  resultatTicket.textContent = '';
+  $('ticket-resultat').textContent = '';
 
   try {
     // Appel de l'API définie dans src/api.py
@@ -113,11 +232,9 @@ formulaire.addEventListener('submit', async (evenement) => {
     });
 
     if (!reponseHttp.ok) {
-      // L'API renvoie {"detail": "..."} sur une erreur (422, 503...).
-      let detail = 'HTTP ' + reponseHttp.status;
-      try { detail = (await reponseHttp.json()).detail || detail; } catch (_) {}
+      if (gererDeconnecte(reponseHttp)) return;
       zoneReponse.className = 'erreur';
-      zoneReponse.textContent = 'Erreur : ' + (typeof detail === 'string' ? detail : JSON.stringify(detail));
+      zoneReponse.textContent = 'Erreur : ' + await detailErreur(reponseHttp);
       return;
     }
 
@@ -127,8 +244,8 @@ formulaire.addEventListener('submit', async (evenement) => {
 
     if (donnees.refus && glpiDisponible) {
       questionSansReponse = question;
-      champPrecisions.value = '';
-      boutonCreer.disabled = false;
+      $('ticket-precisions').value = '';
+      $('ticket-creer').disabled = false;
       encartTicket.hidden = false;
     }
 
@@ -145,45 +262,42 @@ formulaire.addEventListener('submit', async (evenement) => {
     zoneReponse.className = 'erreur';
     zoneReponse.textContent = 'Erreur : le serveur ne répond pas. ' + erreur;
   } finally {
-    bouton.disabled = false;
+    $('envoyer').disabled = false;
   }
 });
 
-boutonAnnuler.addEventListener('click', () => {
-  encartTicket.hidden = true;
-});
+// --- Ticket GLPI ---------------------------------------------------------
+
+$('ticket-annuler').addEventListener('click', () => { encartTicket.hidden = true; });
 
 // Création du ticket : uniquement sur ce clic explicite.
-boutonCreer.addEventListener('click', async () => {
+$('ticket-creer').addEventListener('click', async () => {
   if (!questionSansReponse) return;
-  boutonCreer.disabled = true;
-  resultatTicket.textContent = 'Création du ticket...';
+  $('ticket-creer').disabled = true;
+  $('ticket-resultat').textContent = 'Création du ticket...';
 
   try {
     const reponseHttp = await fetch('/ticket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question: questionSansReponse,
-        precisions: champPrecisions.value,
-        demandeur: champDemandeur.value
-      })
+      body: JSON.stringify({ question: questionSansReponse,
+                             precisions: $('ticket-precisions').value })
     });
-    const donnees = await reponseHttp.json();
 
     if (!reponseHttp.ok) {
-      resultatTicket.innerHTML = '<span style="color:#b00">Le ticket n\'a pas pu être créé : '
-        + echapper(donnees.detail || ('HTTP ' + reponseHttp.status)) + '</span>';
-      boutonCreer.disabled = false;
+      if (gererDeconnecte(reponseHttp)) return;
+      $('ticket-resultat').innerHTML = '<span style="color:#b00">Le ticket n\'a pas pu être créé : '
+        + echapper(await detailErreur(reponseHttp)) + '</span>';
+      $('ticket-creer').disabled = false;
       return;
     }
 
-    resultatTicket.innerHTML = 'Ticket <b>n°' + echapper(donnees.id) + '</b> créé. '
+    const donnees = await reponseHttp.json();
+    $('ticket-resultat').innerHTML = 'Ticket <b>n°' + echapper(donnees.id) + '</b> créé à votre nom. '
       + '<a href="' + echapper(donnees.url) + '" target="_blank" rel="noopener">Voir dans GLPI</a>';
-    champPrecisions.value = '';
   } catch (erreur) {
-    resultatTicket.textContent = 'Erreur : le serveur ne répond pas. ' + erreur;
-    boutonCreer.disabled = false;
+    $('ticket-resultat').textContent = 'Erreur : le serveur ne répond pas. ' + erreur;
+    $('ticket-creer').disabled = false;
   }
 });
 </script>

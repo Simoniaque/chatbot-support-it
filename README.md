@@ -156,9 +156,9 @@ Tout se règle dans `.env`, sans toucher au code.
 | `CHEVAUCHEMENT_CHUNK` | `150` | Recouvrement entre deux morceaux consécutifs |
 | `NOMBRE_EXTRAITS` | `4` | Extraits envoyés au modèle par question |
 | `SEUIL_PERTINENCE` | `0.65` | Distance maximale acceptée (voir ci-dessous) |
-| `GLPI_URL` | *(vide)* | Adresse de GLPI, sans `/apirest.php` (voir « Escalade vers GLPI ») |
+| `GLPI_URL` | *(vide)* | Adresse de GLPI, sans `/apirest.php` (voir « Connexion et escalade vers GLPI ») |
 | `GLPI_APP_TOKEN` | *(vide)* | Jeton du client API GLPI |
-| `GLPI_USER_TOKEN` | *(vide)* | Jeton personnel de l'utilisateur GLPI qui crée les tickets |
+| `DUREE_SESSION_HEURES` | `8` | Durée d'une connexion au chatbot avant de devoir se reconnecter |
 | `JOURNALISATION` | `1` | Enregistre chaque échange dans `logs/echanges.jsonl` (`0` pour désactiver) |
 
 ### Le seuil de pertinence
@@ -178,64 +178,85 @@ Justification et mesures : `docs/seuil-pertinence.md`.
 
 ---
 
-## Escalade vers GLPI
+## Connexion et escalade vers GLPI
 
-Quand le chatbot refuse de répondre, l'interface propose de **transmettre la
-question au support** sous forme de ticket GLPI. Le ticket n'est créé
-**qu'après confirmation explicite** de l'utilisateur (bouton « Créer le
-ticket ») ; le chatbot ne crée jamais de ticket de lui-même.
+Quand GLPI est configuré, le chatbot demande une **connexion avec les
+identifiants GLPI** de la personne. Il n'a pas de base d'utilisateurs à lui :
+il ouvre une session GLPI au nom de l'utilisateur (API REST, authentification
+par login/mot de passe) et la garde côté serveur, repérée par un cookie. Le
+mot de passe ne sert qu'à cet appel et n'est ni conservé ni journalisé.
 
-Le ticket contient la question posée, un rappel que le chatbot n'a pas trouvé
-de réponse, et les précisions facultatives saisies par l'utilisateur
-(contexte, contact). Il est ouvert en type « Demande ».
+Ce que la connexion apporte :
 
-### Activer la fonction
+- **Identité sur les tickets** : quand le chatbot refuse de répondre, il
+  propose de transmettre la question au support. Le ticket est créé avec la
+  session de l'utilisateur, qui en est le **demandeur** dans GLPI — pas un
+  compte technique.
+- **Journal nominatif** : chaque question est tracée avec le login.
+
+Le ticket n'est créé **qu'après confirmation explicite** (bouton « Créer le
+ticket ») ; le chatbot ne crée jamais de ticket de lui-même. Il contient la
+question posée, un rappel que le chatbot n'a pas trouvé de réponse, et les
+précisions facultatives saisies par l'utilisateur. Type « Demande ».
+
+Sans GLPI configuré, pas de connexion : le chatbot est utilisable
+anonymement, sans création de ticket.
+
+### Activer
 
 Côté GLPI (*Configuration > Générale > API*) :
 
-1. Activer l'API REST.
-2. Créer un client API → c'est l'`App-Token`.
-3. Créer un utilisateur dédié (ex. `chatbot`) avec le droit de créer des
-   tickets, et générer son jeton d'API personnel → c'est le `User-Token`.
-   Ce compte apparaîtra comme demandeur des tickets.
+1. Activer l'API REST et **la connexion avec identifiants**.
+2. Créer un client API sans restriction d'adresse IP, et régénérer son
+   jeton d'application → `GLPI_APP_TOKEN`.
 
-Côté projet, renseigner les trois variables dans `.env` :
+Côté projet, dans `.env` :
 
 ```
 GLPI_URL=http://glpi.exemple.local/glpi
 GLPI_APP_TOKEN=...
-GLPI_USER_TOKEN=...
 ```
 
-Puis relancer le serveur. `http://localhost:8000/sante` affiche
-`"glpi_configure": true` si la configuration est prise en compte. Tant que les
-trois valeurs ne sont pas renseignées, la fonction est simplement absente de
-l'interface.
+Puis **relancer** le serveur (`.env` n'est lu qu'au démarrage).
+`http://localhost:8000/sante` affiche `"connexion_requise": true`.
+
+Pour tester sur une vraie instance sans en installer une à la main :
+`docs/glpi-test.md` (GLPI jetable sous Docker, `outils/glpi-test/`).
 
 ### Fonctionnement
 
 ```
-POST /ticket  {question, precisions?, demandeur?}
-   → GET  {GLPI_URL}/apirest.php/initSession      (App-Token + User-Token)
-   → POST {GLPI_URL}/apirest.php/Ticket           (Session-Token)
-   → GET  {GLPI_URL}/apirest.php/killSession
+POST /connexion   {login, mot_de_passe}
+   → GET {GLPI_URL}/apirest.php/initSession     (App-Token + Basic login:mdp)
+   → GET {GLPI_URL}/apirest.php/getFullSession  (identité)
+   ← cookie de session + {id, login, nom}
+
+POST /ask         {question}              (cookie requis)
+POST /ticket      {question, precisions?} (cookie requis)
+   → POST {GLPI_URL}/apirest.php/Ticket  (Session-Token de l'utilisateur,
+                                           _users_id_requester = lui)
    ← {id, url}
+
+POST /deconnexion → GET killSession, cookie supprimé
+GET  /moi         → {connexion_requise, utilisateur}
 ```
 
-Code : `src/glpi.py`. Une erreur GLPI (jeton refusé, serveur injoignable)
-remonte en **502** avec un message lisible, affiché dans l'interface.
+Code : `src/glpi.py` (dialogue avec GLPI) et `src/api.py` (sessions).
+Erreurs : identifiants faux → **401** ; session expirée → **401** (l'interface
+réaffiche la connexion) ; GLPI injoignable ou refus → **502** avec le message.
 
-Pour tester sur une vraie instance sans en installer une à la main :
-`docs/glpi-test.md` (GLPI jetable sous Docker, `outils/glpi-test/`).
+**En production** : GLPI doit être en HTTPS, sinon le mot de passe transite
+en clair entre le chatbot et GLPI.
 
 ---
 
 ## Journalisation des échanges
 
 Chaque question posée via l'API est ajoutée à `logs/echanges.jsonl` : une
-ligne JSON par échange avec la question, le meilleur score, le seuil en
-vigueur, les sources retenues (document, page, score), la réponse et la durée.
-Les créations de tickets et les erreurs GLPI y sont aussi tracées.
+ligne JSON par échange avec l'utilisateur connecté, la question, le meilleur
+score, le seuil en vigueur, les sources retenues (document, page, score), la
+réponse et la durée. Connexions, créations de tickets et erreurs GLPI y sont
+aussi tracées.
 
 ```powershell
 python -m src.journal      # statistiques : taux de refus, scores moyens, dernières questions
@@ -261,7 +282,8 @@ dépôt Git. `JOURNALISATION=0` dans `.env` pour désactiver.
 | `Impossible de joindre Ollama` dans l'interface | Ollama n'est pas lancé | Le démarrer, puis reposer la question |
 | L'interface ne change pas après une modification de `index.html` | Cache du navigateur | Recharger la page (F5) |
 | `uvicorn --reload` affiche « Reloading... » mais l'ancien code reste actif | Sous Windows, le rechargement automatique reste parfois bloqué | Arrêter uvicorn (Ctrl+C) et le relancer |
-| `Connexion à GLPI refusée : ERROR_...` à la création d'un ticket | Jeton invalide, API REST désactivée, ou utilisateur sans droit de créer des tickets | Vérifier les trois valeurs `GLPI_*` dans `.env` et les droits du compte GLPI |
+| `Connexion à GLPI refusée : ERROR_...` à la connexion | Jeton d'application invalide, API REST ou connexion par identifiants désactivée | Vérifier `GLPI_*` dans `.env` et l'onglet API de GLPI |
+| « Votre session a expiré » juste après avoir posé une question | Serveur redémarré (les sessions sont en mémoire) | Se reconnecter |
 
 Les versions de `requirements.txt` ont été figées **après** validation, avec
 `pip freeze`, à partir d'une combinaison réellement testée sur le poste de
@@ -277,7 +299,7 @@ développement.
 - Recherche vectorielle et filtrage par seuil de pertinence (seuil calibré)
 - Génération des réponses avec citation des sources
 - API et interface web
-- Escalade vers GLPI : création de ticket sur refus, après confirmation de l'utilisateur (validé sur GLPI 11, `docs/glpi-test.md`)
+- Connexion avec les identifiants GLPI ; escalade vers GLPI : ticket créé au nom de l'utilisateur sur refus, après confirmation (validé sur GLPI 11, `docs/glpi-test.md`)
 - Journalisation des échanges (question, extraits retenus, scores, réponse)
 
 **En cours**
