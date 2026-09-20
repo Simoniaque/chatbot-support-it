@@ -13,9 +13,21 @@ Durée : environ 20 minutes la première fois (téléchargements compris).
 winget install Docker.DockerDesktop
 ```
 
-Redémarrer le PC si l'installateur le demande (il active WSL 2), puis lancer
-**Docker Desktop** et attendre que l'icône dans la barre des tâches indique
-« Docker Desktop is running ». Vérifier dans un terminal :
+Docker Desktop repose sur WSL 2, qui a besoin de deux fonctionnalités
+Windows souvent désactivées sur un poste neuf. Si Docker Desktop affiche
+« Docker Desktop is unable to start » (ou si ses logs mentionnent *Virtual
+Machine Platform not enabled*), les activer dans un **PowerShell
+administrateur** :
+
+```powershell
+dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+```
+
+Puis **redémarrer le PC**, lancer `wsl --update`, et ouvrir Docker Desktop.
+Attendre que l'icône dans la barre des tâches indique « Docker Desktop is
+running ». Si un terminal était ouvert avant l'installation, le fermer et
+le rouvrir pour que `docker` soit dans le PATH. Vérifier :
 
 ```powershell
 docker compose version
