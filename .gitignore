@@ -29,3 +29,6 @@ Thumbs.db
 # Fichiers propres à Claude Code (instructions et lancement) : pas utiles au projet.
 CLAUDE.md
 .claude/
+
+# Instance GLPI de test : ce .env ne contient que des valeurs locales jetables.
+!outils/glpi-test/.env

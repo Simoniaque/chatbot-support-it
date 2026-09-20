@@ -13,7 +13,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from src import config, glpi, rag
+import time
+
+from src import config, glpi, journal, rag
 
 app = FastAPI(title="Chatbot Support IT")
 
@@ -45,8 +47,9 @@ def ask(payload: Question):
     question = payload.question.strip()
     if not question:
         raise HTTPException(status_code=422, detail="La question est vide.")
+    debut = time.perf_counter()
     try:
-        return rag.repondre(question)
+        resultat = rag.repondre(question)
     except ConnectionError:
         # Levée par langchain_ollama quand Ollama ne répond pas. Sans ce
         # bloc, l'utilisateur reçoit une page "Internal Server Error"
@@ -56,6 +59,21 @@ def ask(payload: Question):
             detail="Impossible de joindre Ollama. Vérifiez qu'il est lancé "
                    f"(adresse configurée : {config.URL_OLLAMA}).",
         )
+
+    # Trace de l'échange : ce qui a été retenu et pourquoi. On ne garde des
+    # sources que l'identification et le score, pas le texte des extraits.
+    journal.enregistrer(
+        "question",
+        question=question,
+        refus=resultat["refus"],
+        meilleur_score=resultat["meilleur_score"],
+        seuil=config.SEUIL_PERTINENCE,
+        sources=[{"document": s["document"], "page": s["page"],
+                  "score": s["score"]} for s in resultat["sources"]],
+        reponse=resultat["reponse"],
+        duree_s=round(time.perf_counter() - debut, 2),
+    )
+    return resultat
 
 
 class DemandeTicket(BaseModel):
@@ -78,14 +96,20 @@ def ticket(payload: DemandeTicket):
                    "configuré dans .env).",
         )
     try:
-        return glpi.creer_ticket(
+        resultat = glpi.creer_ticket(
             question=payload.question.strip(),
             precisions=payload.precisions,
             demandeur=payload.demandeur,
         )
     except glpi.ErreurGLPI as erreur:
+        journal.enregistrer("erreur", origine="glpi",
+                            question=payload.question.strip(), detail=str(erreur))
         # 502 : le problème est entre nous et GLPI, pas dans la requête.
         raise HTTPException(status_code=502, detail=str(erreur))
+
+    journal.enregistrer("ticket", question=payload.question.strip(),
+                        ticket_id=resultat["id"], url=resultat["url"])
+    return resultat
 
 
 @app.get("/sante")
@@ -100,6 +124,7 @@ def sante():
         # proposer la création de ticket.
         "glpi_configure": glpi.est_configure(),
         "glpi_url": config.GLPI_URL or None,
+        "journalisation": config.JOURNALISATION,
     }
 
 

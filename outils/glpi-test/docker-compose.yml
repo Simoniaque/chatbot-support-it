@@ -1,0 +1,38 @@
+# Instance GLPI jetable pour tester l'escalade de tickets du chatbot.
+# Repris de l'exemple officiel : github.com/glpi-project/docker-images
+#
+#   docker compose up -d        # démarrer (premier lancement : 2 à 3 min)
+#   docker compose logs -f glpi # suivre l'installation
+#   docker compose down         # arrêter (les données restent dans les volumes)
+#   docker compose down -v      # arrêter ET tout effacer
+#
+# GLPI : http://localhost:8080  — identifiants par défaut : glpi / glpi
+
+name: glpi-test
+
+services:
+  glpi:
+    image: "glpi/glpi:latest"
+    restart: "unless-stopped"
+    volumes:
+      - glpi_data:/var/glpi
+    env_file: .env
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+
+  db:
+    image: "mysql"
+    restart: "unless-stopped"
+    volumes:
+      - db_data:/var/lib/mysql
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: ${GLPI_DB_NAME}
+      MYSQL_USER: ${GLPI_DB_USER}
+      MYSQL_PASSWORD: ${GLPI_DB_PASSWORD}
+
+volumes:
+  glpi_data:
+  db_data:

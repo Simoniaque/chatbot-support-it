@@ -56,3 +56,11 @@ SEUIL_PERTINENCE = float(os.getenv("SEUIL_PERTINENCE", "0.65"))
 GLPI_URL = os.getenv("GLPI_URL", "").strip()
 GLPI_APP_TOKEN = os.getenv("GLPI_APP_TOKEN", "").strip()
 GLPI_USER_TOKEN = os.getenv("GLPI_USER_TOKEN", "").strip()
+
+# --- Journalisation --------------------------------------------------------
+# Chaque question (extraits retenus, scores, réponse) est ajoutée à un fichier
+# JSON Lines. Sert à mesurer la qualité et à calibrer le seuil.
+# JOURNALISATION=0 dans .env pour désactiver.
+JOURNALISATION = os.getenv("JOURNALISATION", "1").strip() not in ("0", "false", "non")
+DOSSIER_JOURNAL = RACINE / "logs"
+FICHIER_JOURNAL = DOSSIER_JOURNAL / "echanges.jsonl"

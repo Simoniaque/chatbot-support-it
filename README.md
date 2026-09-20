@@ -131,10 +131,13 @@ Ollama doit tourner en arrière-plan pendant toute l'utilisation.
 │   ├── ingestion.py   # Documents → morceaux → base vectorielle
 │   ├── rag.py         # Question → recherche → seuil → réponse
 │   ├── glpi.py        # Création de ticket GLPI (API REST)
+│   ├── journal.py     # Journalisation des échanges (JSON Lines)
 │   └── api.py         # API FastAPI + service de la page web
 ├── static/index.html  # Interface utilisateur
 ├── data/corpus/       # Documents sources (hors dépôt Git)
 ├── chroma_db/         # Base vectorielle générée (hors dépôt Git)
+├── logs/              # Journal des échanges (hors dépôt Git)
+├── outils/glpi-test/  # Instance GLPI jetable (Docker) pour tester l'escalade
 ├── tests/             # Jeu de questions d'évaluation
 └── docs/              # Justification des choix, documentation
 ```
@@ -156,6 +159,7 @@ Tout se règle dans `.env`, sans toucher au code.
 | `GLPI_URL` | *(vide)* | Adresse de GLPI, sans `/apirest.php` (voir « Escalade vers GLPI ») |
 | `GLPI_APP_TOKEN` | *(vide)* | Jeton du client API GLPI |
 | `GLPI_USER_TOKEN` | *(vide)* | Jeton personnel de l'utilisateur GLPI qui crée les tickets |
+| `JOURNALISATION` | `1` | Enregistre chaque échange dans `logs/echanges.jsonl` (`0` pour désactiver) |
 
 ### Le seuil de pertinence
 
@@ -221,6 +225,28 @@ POST /ticket  {question, precisions?, demandeur?}
 Code : `src/glpi.py`. Une erreur GLPI (jeton refusé, serveur injoignable)
 remonte en **502** avec un message lisible, affiché dans l'interface.
 
+Pour tester sur une vraie instance sans en installer une à la main :
+`docs/glpi-test.md` (GLPI jetable sous Docker, `outils/glpi-test/`).
+
+---
+
+## Journalisation des échanges
+
+Chaque question posée via l'API est ajoutée à `logs/echanges.jsonl` : une
+ligne JSON par échange avec la question, le meilleur score, le seuil en
+vigueur, les sources retenues (document, page, score), la réponse et la durée.
+Les créations de tickets et les erreurs GLPI y sont aussi tracées.
+
+```powershell
+python -m src.journal      # statistiques : taux de refus, scores moyens, dernières questions
+```
+
+C'est la matière première pour calibrer le seuil (`docs/seuil-pertinence.md`)
+et repérer les questions fréquentes auxquelles le corpus ne répond pas.
+
+Le fichier contient les questions réelles des utilisateurs : il est exclu du
+dépôt Git. `JOURNALISATION=0` dans `.env` pour désactiver.
+
 ---
 
 ## Problèmes connus et solutions
@@ -252,11 +278,12 @@ développement.
 - Génération des réponses avec citation des sources
 - API et interface web
 - Escalade vers GLPI : création de ticket sur refus, après confirmation de l'utilisateur
+- Journalisation des échanges (question, extraits retenus, scores, réponse)
 
 **En cours**
 
 - Enrichissement du corpus documentaire
-- Journalisation des échanges (question, extraits retenus, scores, réponse)
+- Validation de l'escalade GLPI sur une vraie instance (`docs/glpi-test.md`)
 - Mesure des indicateurs de qualité sur le jeu de test
 - Rédaction de `docs/choix-techniques.md`
 
