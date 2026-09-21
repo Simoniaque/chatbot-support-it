@@ -174,7 +174,7 @@ ou de modèle.
 ├── sessions.sqlite    # Sessions ouvertes (hors dépôt Git)
 ├── outils/glpi-test/  # Instance GLPI jetable (Docker) pour tester l'escalade
 ├── tests/             # Tests automatisés (pytest) et jeu de questions d'évaluation
-└── docs/              # Justification des choix, documentation
+└── docs/              # Justification des choix, doc GLPI, script de démo pour l'oral
 ```
 
 ---
