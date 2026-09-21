@@ -4,7 +4,8 @@ Sert à mesurer la qualité des réponses et à calibrer le seuil de pertinence.
 À compléter au fur et à mesure que le corpus s'enrichit.
 
 **Dernières campagnes : 20 et 21/09/2026** — corpus : *Help Center GLPI.pdf* (767
-morceaux) ; `nomic-embed-text` + `mistral` ; `SEUIL_PERTINENCE=0.65`,
+morceaux) ; `nomic-embed-text` + `mistral` (puis `qwen2.5:7b` à partir de la
+campagne 8) ; `SEUIL_PERTINENCE=0.65`,
 `NOMBRE_EXTRAITS=4`. Les 25 questions ont été passées dans le pipeline
 complet (`rag.repondre`), réponses lues une à une.
 
@@ -479,12 +480,12 @@ Ce que ça montre :
   question posée. Mistral répondait à côté.
 - Même taille (7B, 4,7 Go), même vitesse, même coût.
 
-**Décision** : à prendre par le porteur du projet — remplacer `mistral` par
-`qwen2.5:7b` en `MODELE_LLM` touche au choix affiché dans le README et
-l'argumentaire. Sur la mesure, Qwen est meilleur sur tous les critères du
-projet (refuser plutôt qu'inventer, rester fidèle aux extraits). Le
-changement tient en une ligne de `.env` ; le seuil de pertinence, lui, ne
-bouge pas (il dépend du modèle d'embeddings, inchangé).
+**Décision (21/09/2026)** : `qwen2.5:7b` devient le rédacteur par défaut
+(`MODELE_LLM`). Sur la mesure, il est meilleur sur tous les critères du
+projet (refuser plutôt qu'inventer, rester fidèle aux extraits). Le seuil
+de pertinence ne bouge pas : il dépend du modèle d'embeddings, inchangé.
+Réglage de référence pour les prochaines campagnes : celui de la
+campagne 8.
 
 ## Méthode à suivre pour les prochaines campagnes
 

@@ -14,11 +14,11 @@ un fournisseur externe.
 Télécharge-le sur https://ollama.com, installe-le, puis dans un terminal :
 
 ```bash
-ollama pull mistral
+ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
 ```
 
-Ces deux commandes téléchargent les modèles (environ 4 Go au total). Vérifie
+Ces deux commandes téléchargent les modèles (environ 5 Go au total). Vérifie
 ensuite avec :
 
 ```bash

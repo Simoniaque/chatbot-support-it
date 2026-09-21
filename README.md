@@ -19,7 +19,7 @@ partir de ceux-ci.
 question → recherche des extraits proches (ChromaDB)
          → filtrage par seuil de pertinence
          → vérification extrait par extrait (le modèle juge : répond-il ?)
-         → rédaction par Mistral (local, via Ollama)
+         → rédaction par Qwen 2.5 (local, via Ollama)
          → réponse + sources citées
 ```
 
@@ -34,7 +34,7 @@ donnée ne sort du poste.
 |---|---|---|
 | Langage | Python **3.12** | Écosystème IA/RAG le plus fourni. 3.13 est trop récent : plusieurs dépendances n'ont pas de version précompilée (voir « Problèmes connus ») |
 | Orchestration | LangChain | Lecture, découpage, recherche et génération déjà assemblés |
-| LLM | Mistral via Ollama | Local, gratuit, pas de fuite de données |
+| LLM | Qwen 2.5 7B via Ollama | Local, gratuit, pas de fuite de données. Choisi après mesure : 0 invention sur 8 réponses contre 1 sur 9 pour Mistral 7B, et plus fidèle aux extraits (`tests/questions_test.md`) |
 | Embeddings | nomic-embed-text | Modèle dédié à la mise en vecteurs, plus rapide et plus précis qu'un LLM généraliste pour cette tâche |
 | Base vectorielle | ChromaDB | Locale, sans serveur à administrer |
 | Backend | FastAPI | API documentée automatiquement, réutilisable (intégration GLPI prévue) |
@@ -53,10 +53,10 @@ donnée ne sort du poste.
 
 ### Modèles Ollama
 
-À faire une seule fois, environ 4 Go :
+À faire une seule fois, environ 5 Go :
 
 ```powershell
-ollama pull mistral
+ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
 ollama list          # doit afficher les deux modèles
 ```
@@ -169,7 +169,7 @@ Tout se règle dans `.env`, sans toucher au code.
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `MODELE_LLM` | `mistral` | Modèle qui rédige la réponse |
+| `MODELE_LLM` | `qwen2.5:7b` | Modèle qui rédige la réponse (et juge les extraits, sauf `MODELE_JUGE`) |
 | `MODELE_EMBEDDINGS` | `nomic-embed-text` | Modèle qui vectorise les textes |
 | `TAILLE_CHUNK` | `1000` | Taille des morceaux, en caractères |
 | `CHEVAUCHEMENT_CHUNK` | `150` | Recouvrement entre deux morceaux consécutifs |
@@ -321,7 +321,7 @@ développement.
 
 - Pipeline d'ingestion complet, avec traitement par lots et reprise sur erreur
 - Recherche vectorielle et filtrage par seuil de pertinence (seuil calibré)
-- Génération des réponses avec citation des sources
+- Génération des réponses avec citation des sources ; vérification de chaque extrait avant rédaction ; rédacteur `qwen2.5:7b` retenu après 8 campagnes de mesure (0 invention sur 8 réponses)
 - API et interface web : fil de conversation, sources repliables, refus expliqués, avis utile / pas utile
 - Connexion avec les identifiants GLPI ; escalade vers GLPI : ticket créé au nom de l'utilisateur sur refus, après confirmation (validé sur GLPI 11, `docs/glpi-test.md`)
 - Journalisation des échanges (question, extraits retenus, scores, réponse)
@@ -329,7 +329,6 @@ développement.
 **En cours**
 
 - Enrichissement du corpus documentaire
-- Choix du modèle rédacteur : `qwen2.5:7b` mesuré à 0 invention / 8 réponses contre 1 / 9 pour `mistral` (voir `tests/questions_test.md`, campagne 8) — bascule à décider
 
 **À planifier**
 

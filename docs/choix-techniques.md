@@ -65,7 +65,8 @@ l'a motivée.
 
 ## Modèle d'embeddings dédié, et seuil remesuré pour lui
 
-`nomic-embed-text` transforme les textes en vecteurs ; `mistral` rédige.
+`nomic-embed-text` transforme les textes en vecteurs ; le modèle de langage
+(`mistral` au départ, `qwen2.5:7b` depuis la campagne 8) rédige.
 Deux modèles, parce que ce sont deux métiers : un modèle d'embeddings est
 plus rapide et plus précis pour comparer des sens qu'un modèle de langage
 généraliste.
@@ -144,7 +145,7 @@ même si c'est vrai dans GLPI. Cette règle est écrite dans
 `tests/questions_test.md` ; elle a corrigé l'étalon des cinq premières
 campagnes.
 
-## Ce qui reste vrai malgré tout : Mistral 7B, un compromis
+## Rédacteur : de Mistral 7B à Qwen 2.5 7B
 
 Avec Mistral, aucun réglage n'a atteint zéro invention sans refuser des
 questions couvertes. L'invention restante venait du **rédacteur** (« pas de
@@ -158,8 +159,9 @@ qu'inventer, rester fidèle au corpus — Qwen 2.5 est meilleur que Mistral 7B.
 
 Le modèle rédacteur est un réglage (`MODELE_LLM`), pas une dépendance : le
 changer ne touche ni au seuil (qui dépend du modèle d'embeddings) ni au
-reste du pipeline. Le choix final revient au porteur du projet ; la mesure
-plaide pour Qwen.
+reste du pipeline. **Bascule faite le 21/09/2026** : `qwen2.5:7b` est le
+rédacteur par défaut. Mistral reste utilisable en une ligne de `.env`.
+Même taille (4,7 Go), même vitesse, licence Apache 2.0.
 
 ## Connexion avec les identifiants GLPI
 

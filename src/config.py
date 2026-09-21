@@ -26,7 +26,9 @@ DOSSIER_BASE_VECTORIELLE = RACINE / "chroma_db"  # la base générée
 #    pour pouvoir comparer des sens ;
 #  - le modèle de langage rédige la réponse finale.
 MODELE_EMBEDDINGS = os.getenv("MODELE_EMBEDDINGS", "nomic-embed-text")
-MODELE_LLM = os.getenv("MODELE_LLM", "mistral")
+# qwen2.5:7b plutôt que mistral : mesuré à 0 invention sur 8 réponses contre
+# 1 sur 9, et plus fidèle aux extraits (tests/questions_test.md, campagne 8).
+MODELE_LLM = os.getenv("MODELE_LLM", "qwen2.5:7b")
 # Modèle qui juge la pertinence d'un extrait en zone grise (voir
 # SEUIL_VERIFICATION). Par défaut le même que le LLM ; un modèle distinct,
 # meilleur en classification, peut être plus fiable sans changer le rédacteur.

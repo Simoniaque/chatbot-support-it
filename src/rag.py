@@ -14,7 +14,7 @@ from src import config
 # Mot-clé que le modèle doit renvoyer, seul, quand le contexte ne répond pas
 # à la question. Le code le détecte et le transforme en refus. Plus fiable
 # qu'une consigne en langage naturel : la campagne du 20/09/2026 a montré que
-# « dis-le clairement et n'invente rien » n'empêche pas Mistral d'enchaîner
+# « dis-le clairement et n'invente rien » n'empêche pas Mistral 7B d'enchaîner
 # par « Cependant, voici comment faire... » avec ses propres connaissances.
 MARQUEUR_HORS_CONTEXTE = "HORS_CONTEXTE"
 
@@ -175,7 +175,7 @@ def repondre(question: str) -> dict:
 
     contexte = "\n\n---\n\n".join(doc.page_content for doc, _ in retenus)
     prompt = GABARIT_PROMPT.format(contexte=contexte, question=question)
-    # Mistral commence souvent sa réponse par un espace ou un saut de ligne.
+    # Certains modèles commencent leur réponse par un espace ou un saut de ligne.
     reponse = _get_llm().invoke(prompt).content.strip()
 
     # Second filtre, après le seuil : le modèle a jugé que les extraits
