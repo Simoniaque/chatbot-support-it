@@ -45,6 +45,12 @@ CHEVAUCHEMENT_CHUNK = int(os.getenv("CHEVAUCHEMENT_CHUNK", "150"))
 # --- Recherche -------------------------------------------------------------
 NOMBRE_EXTRAITS = int(os.getenv("NOMBRE_EXTRAITS", "4"))
 
+# Recherche hybride : aux extraits trouvés par proximité de sens (vecteurs)
+# s'ajoutent ceux trouvés par mots-clés, les deux classements étant
+# fusionnés. Rattrape les questions dont le vocabulaire diffère du document
+# (voir src/recherche.py). RECHERCHE_HYBRIDE=0 pour revenir aux vecteurs seuls.
+RECHERCHE_HYBRIDE = os.getenv("RECHERCHE_HYBRIDE", "1").strip() not in ("0", "false", "non")
+
 # Seuil de pertinence : il s'agit d'une DISTANCE, donc plus c'est BAS, plus
 # l'extrait est proche de la question.
 #   - seuil trop bas  -> le bot refuse de répondre trop souvent

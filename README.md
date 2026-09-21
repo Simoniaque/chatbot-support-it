@@ -16,7 +16,7 @@ d'abord des extraits de la documentation interne, et il rédige uniquement à
 partir de ceux-ci.
 
 ```
-question → recherche des extraits proches (ChromaDB)
+question → recherche des extraits proches (ChromaDB), repêchage par mots-clés
          → filtrage par seuil de pertinence
          → vérification extrait par extrait (le modèle juge : répond-il ?)
          → rédaction par Qwen 2.5 (local, via Ollama)
@@ -141,11 +141,12 @@ Ollama doit tourner en arrière-plan pendant toute l'utilisation.
 python -m pytest
 ```
 
-Une quarantaine de tests, en moins d'une seconde, sans Ollama ni GLPI : la
-base vectorielle, le modèle et l'API GLPI sont remplacés par des doublures
-(`tests/conftest.py`). Ils couvrent la logique de décision (seuils,
-vérification des extraits, refus), le dialogue avec GLPI, les sessions et les
-routes de l'API, et le journal.
+Une cinquantaine de tests, en moins de deux secondes, sans Ollama ni GLPI :
+la base vectorielle, le modèle et l'API GLPI sont remplacés par des
+doublures (`tests/conftest.py`). Ils couvrent la logique de décision
+(seuils, vérification des extraits, refus), la recherche par mots-clés,
+l'ingestion, le dialogue avec GLPI, les sessions et les routes de l'API, et
+le journal.
 
 La **qualité des réponses**, elle, ne se teste pas automatiquement : c'est
 l'objet de `tests/questions_test.md`, à rejouer à chaque changement de corpus
@@ -159,7 +160,9 @@ ou de modèle.
 ├── src/
 │   ├── config.py      # Tous les réglages, lus depuis .env
 │   ├── ingestion.py   # Documents → morceaux → base vectorielle
-│   ├── rag.py         # Question → recherche → seuil → réponse
+│   ├── rag.py         # Question → recherche → seuil → vérification → réponse
+│   ├── recherche.py   # Recherche hybride : vecteurs + repêchage par mots-clés
+│   ├── sessions.py    # Sessions des utilisateurs connectés (SQLite)
 │   ├── glpi.py        # Création de ticket GLPI (API REST)
 │   ├── journal.py     # Journalisation des échanges (JSON Lines)
 │   └── api.py         # API FastAPI + service de la page web
@@ -168,6 +171,7 @@ ou de modèle.
 ├── data/exemples/     # Procédures d'exemple, fictives, à copier dans le corpus pour essayer
 ├── chroma_db/         # Base vectorielle générée (hors dépôt Git)
 ├── logs/              # Journal des échanges (hors dépôt Git)
+├── sessions.sqlite    # Sessions ouvertes (hors dépôt Git)
 ├── outils/glpi-test/  # Instance GLPI jetable (Docker) pour tester l'escalade
 ├── tests/             # Tests automatisés (pytest) et jeu de questions d'évaluation
 └── docs/              # Justification des choix, documentation
@@ -186,6 +190,7 @@ Tout se règle dans `.env`, sans toucher au code.
 | `TAILLE_CHUNK` | `1000` | Taille des morceaux, en caractères |
 | `CHEVAUCHEMENT_CHUNK` | `150` | Recouvrement entre deux morceaux consécutifs |
 | `NOMBRE_EXTRAITS` | `4` | Extraits envoyés au modèle par question |
+| `RECHERCHE_HYBRIDE` | `1` | Quand les vecteurs ne trouvent rien sous le seuil, repêche les morceaux contenant un mot rare de la question (`0` = vecteurs seuls) |
 | `SEUIL_PERTINENCE` | `0.65` | Distance maximale du **meilleur** extrait pour répondre (voir ci-dessous) |
 | `SEUIL_CONTEXTE` | `0.65` | Distance maximale des extraits **suivants** inclus dans le contexte (≥ `SEUIL_PERTINENCE`) |
 | `GLPI_URL` | *(vide)* | Adresse de GLPI, sans `/apirest.php` (voir « Connexion et escalade vers GLPI ») |
@@ -218,8 +223,9 @@ Justification et mesures : `docs/seuil-pertinence.md`.
 Quand GLPI est configuré, le chatbot demande une **connexion avec les
 identifiants GLPI** de la personne. Il n'a pas de base d'utilisateurs à lui :
 il ouvre une session GLPI au nom de l'utilisateur (API REST, authentification
-par login/mot de passe) et la garde côté serveur, repérée par un cookie. Le
-mot de passe ne sert qu'à cet appel et n'est ni conservé ni journalisé.
+par login/mot de passe) et la conserve côté serveur (SQLite, hors dépôt),
+repérée par un cookie : un redémarrage du serveur ne déconnecte personne.
+Le mot de passe ne sert qu'à cet appel et n'est ni conservé ni journalisé.
 
 Ce que la connexion apporte :
 
@@ -318,10 +324,9 @@ dépôt Git. `JOURNALISATION=0` dans `.env` pour désactiver.
 | `Impossible de joindre Ollama` dans l'interface | Ollama n'est pas lancé | Le démarrer, puis reposer la question |
 | L'interface ne change pas après une modification de `index.html` | Cache du navigateur | Recharger la page (F5) |
 | Accents remplacés par `Ã©` dans les extraits d'un `.md` ou `.txt` | Fichier qui n'est pas en UTF-8 | Le réenregistrer en UTF-8 et relancer l'ingestion (les anciens morceaux sont remplacés) |
-| Une question n'est pas trouvée alors que le document en parle | Écart de vocabulaire entre la question et le texte (ex. « installer Photoshop » vs « licence hors catalogue ») | Reformuler ; à terme, recherche hybride mots-clés + vecteurs (voir « À planifier ») |
+| Une question n'est pas trouvée alors que le document en parle | Écart de vocabulaire entre la question et le texte | Le repêchage par mots-clés (`RECHERCHE_HYBRIDE`) rattrape les cas où un mot rare de la question figure dans le document ; sinon, reformuler |
 | `uvicorn --reload` affiche « Reloading... » mais l'ancien code reste actif | Sous Windows, le rechargement automatique reste parfois bloqué | Arrêter uvicorn (Ctrl+C) et le relancer |
 | `Connexion à GLPI refusée : ERROR_...` à la connexion | Jeton d'application invalide, API REST ou connexion par identifiants désactivée | Vérifier `GLPI_*` dans `.env` et l'onglet API de GLPI |
-| « Votre session a expiré » juste après avoir posé une question | Serveur redémarré (les sessions sont en mémoire) | Se reconnecter |
 
 Les versions de `requirements.txt` ont été figées **après** validation, avec
 `pip freeze`, à partir d'une combinaison réellement testée sur le poste de
@@ -348,5 +353,3 @@ développement.
 
 - Intégration GLPI côté lecture : base de connaissances et historique des tickets dans le corpus
 - Stratégie d'archivage du corpus (montée en charge de ChromaDB) — la mise à jour incrémentale est faite
-- Recherche hybride (mots-clés + vecteurs) pour les questions dont le vocabulaire diffère du document
-- Migration des lecteurs de documents hors de `langchain-community` (paquet en fin de vie)

@@ -200,6 +200,37 @@ quelques lignes de Python (`python -m src.journal`), et c'est la matière
 première pour recalibrer les seuils à chaque changement de corpus. Le fichier
 contient les questions réelles des utilisateurs : hors dépôt Git.
 
+## Recherche hybride : les vecteurs classent, les mots-clés repêchent
+
+La recherche vectorielle compare des sens et rate les questions dont le
+vocabulaire diffère du document : « Comment installer Photoshop ? » ne
+trouvait pas le passage « Photoshop […] est hors catalogue » (distance
+0.965) alors que le mot y est. Un index par mots-clés (somme des poids idf
+des mots de la question présents dans le morceau, écrit en quarante lignes
+sans dépendance) le trouve immédiatement.
+
+Trois façons de combiner les deux ont été essayées le 21/09/2026 :
+
+| Règle | Effet | Verdict |
+|---|---|---|
+| Fusion à égalité des deux classements (rang réciproque) | Des morceaux trouvés par mots-clés seulement, sémantiquement très loin (0.93–0.95), évincent de bons candidats vectoriels : « entité » perd la page 415, « base de connaissances » perd deux extraits | Écartée |
+| Les vecteurs classent, les mots-clés ajoutent les morceaux contenant un mot rare | Mieux, mais « fonctionne », « monde », « coupe » sont rares dans un petit corpus sans rien apporter, et évincent encore des extraits utiles | Écartée |
+| **Les mots-clés ne servent que de repêchage**, quand aucun candidat vectoriel ne passe le seuil | Les questions couvertes gardent exactement leurs candidats ; Photoshop est repêché ; le juge écarte les faux repêchages (« coupe du monde ») en 0,2 s | **Retenue** |
+
+Résultat mesuré (campagne 9) : identique à la campagne 8 sur les questions
+couvertes, 9/9 refus sur le hors sujet, et le morceau Photoshop est
+désormais *examiné* — puis écarté par le juge, qui ne voit pas dans « hors
+catalogue, licence à justifier » une réponse à « comment installer ». La
+recherche fait son travail ; la limite s'est déplacée vers le juge.
+
+## Sessions dans SQLite
+
+Les sessions étaient en mémoire : chaque redémarrage du serveur (y compris
+les rechargements automatiques en développement) déconnectait tout le
+monde. SQLite, fourni avec Python, les conserve sans serveur ni dépendance
+(`src/sessions.py`, fichier hors dépôt). Les sessions expirées sont fermées
+côté GLPI à la connexion suivante.
+
 ## Interface sans dépendance
 
 HTML et JavaScript seuls, un fichier. Un cadre (React, Vue) n'apporterait
@@ -210,8 +241,9 @@ selon leur motif, et recueille un avis par réponse.
 
 ## Tests automatisés hors ligne
 
-Une quarantaine de tests (`python -m pytest`, moins d'une seconde) couvrent
-la logique de décision, le dialogue GLPI, les sessions et le journal, avec
-des doublures pour Ollama, ChromaDB et GLPI. Ils protègent contre les
+Une cinquantaine de tests (`python -m pytest`, moins de deux secondes)
+couvrent la logique de décision, la recherche par mots-clés, l'ingestion,
+le dialogue GLPI, les sessions et le journal, avec des doublures pour
+Ollama, ChromaDB et GLPI. Ils protègent contre les
 régressions ; ils ne mesurent pas la qualité des réponses, qui relève du jeu
 de questions et d'une lecture humaine des extraits.

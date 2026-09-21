@@ -42,6 +42,7 @@ class FauxDocument:
     def __init__(self, contenu, page, source="doc.pdf"):
         self.page_content = contenu
         self.metadata = {"source": source, "page": page}
+        self.id = f"{source}:{page}:{contenu}"
 
 
 class FausseBase:
@@ -90,6 +91,9 @@ def faux_rag(monkeypatch):
         monkeypatch.setattr(config, "SEUIL_PERTINENCE", seuil)
         monkeypatch.setattr(config, "SEUIL_CONTEXTE", max(contexte, seuil))
         monkeypatch.setattr(config, "SEUIL_VERIFICATION", verification)
+        # Les tests du RAG portent sur la décision, pas sur la recherche par
+        # mots-clés (testée à part) : vecteurs seuls, résultats fixés.
+        monkeypatch.setattr(config, "RECHERCHE_HYBRIDE", False)
         return modele
     return installer
 

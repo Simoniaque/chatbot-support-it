@@ -514,6 +514,40 @@ Deux enseignements :
 Le seuil de 0.65 reste valable : les nouvelles questions couvertes sont
 entre 0.35 et 0.57, le hors sujet reste au-dessus de 0.70.
 
+## Campagne 9 — question de vérification reformulée, recherche hybride (21/09/2026)
+
+Trois changements depuis la campagne 8 : corpus étendu (cinq procédures
+d'exemple), question de vérification reformulée (admet les réponses
+indirectes : « n'existe plus », « a été remplacé », « n'est pas possible »),
+et recherche hybride (repêchage par mots-clés quand les vecteurs ne trouvent
+rien sous le seuil). Les trois groupes rejoués, ancrage relu.
+
+Question de vérification : comparée à l'ancienne sur les 16 extraits
+étiquetés, 14/16 chacune ; la nouvelle récupère FusionInventory et rejette
+un extrait de « entité » qui ne parlait que de délégation — étiquette
+indulgente de ma part, la nouvelle formulation est plus juste.
+
+| Groupe | Résultat |
+|---|---|
+| A | Identique à la campagne 8 : 7 réponses ancrées, 2 refus (utilisateur : justifié ; FusionInventory : le juge garde maintenant l'extrait mais le rédacteur répond HORS_CONTEXTE), notifications refusée (extraits hors cible) |
+| B | **9 refus sur 9**. Deux passent désormais par la vérification : « coupe du monde 2018 » (morceaux repêchés par « monde » et « coupe », écartés en 0,2 s) et « installer Photoshop » (morceau de la procédure matériel repêché, examiné, écarté : le juge ne tient pas « hors catalogue » pour une réponse à « installer ») |
+| C | « mot de passe Windows » **répondue** depuis la nouvelle procédure (ancrée, mot pour mot) ; LDAP répondue par le renvoi que contient le manuel (ancrée, minimale) ; les quatre autres refusées |
+
+| Indicateur | Campagne 8 | Campagne 9 |
+|---|---|---|
+| Inventions | 0 / 8 | **0 / 9** |
+| Faux refus (A) | 1 / 10 | 1 / 10 |
+| Refus justifiés (B) | 9 / 9 | 9 / 9 |
+| Réponses fournies | 8 / 25 | 9 / 25 |
+
+Deux enseignements sur la recherche hybride, détaillés dans
+`docs/choix-techniques.md` : la fusion à égalité des classements dégrade les
+questions couvertes (morceaux lointains qui évincent les bons), et « rare »
+n'est pas « informatif » dans un petit corpus. D'où la règle retenue :
+repêchage seulement quand les vecteurs échouent.
+
+Réglage de référence pour les prochaines campagnes : celui-ci.
+
 ## Méthode à suivre pour les prochaines campagnes
 
 1. Passer les questions par `rag.repondre` (ou l'interface).

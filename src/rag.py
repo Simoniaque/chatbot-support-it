@@ -11,7 +11,7 @@ import re
 from langchain_chroma import Chroma
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
-from src import config
+from src import config, recherche
 
 # Mot-clé que le modèle doit renvoyer, seul, quand le contexte ne répond pas
 # à la question. Le code le détecte et le transforme en refus. Plus fiable
@@ -51,8 +51,11 @@ Extrait :
 
 Question : {question}
 
-L'extrait contient-il des informations qui répondent à cette question, même
-partiellement ? Réponds uniquement par OUI ou par NON."""
+L'extrait apporte-t-il un élément de réponse à cette question, même partiel
+ou indirect (par exemple : il indique que la chose demandée n'existe plus,
+a été remplacée, ou n'est pas possible) ? Un extrait qui parle du même
+sujet sans rien apporter à la question compte pour NON.
+Réponds uniquement par OUI ou par NON."""
 
 MESSAGE_REFUS = (
     "Je n'ai pas trouvé d'information suffisamment proche de votre question "
@@ -136,33 +139,38 @@ def repondre(question: str) -> dict:
     "modele" (le modèle a jugé, en rédigeant, que le contexte ne répond pas),
     ou None.
     """
-    resultats = _get_base().similarity_search_with_score(
-        question, k=config.NOMBRE_EXTRAITS
-    )
+    candidats = recherche.chercher(_get_base(), question, k=config.NOMBRE_EXTRAITS)
 
-    if not resultats:
+    if not candidats:
         return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
                 "motif_refus": "seuil", "meilleur_score": None,
                 "extraits_verifies": 0, "extraits_ecartes": 0}
 
     # ATTENTION : ici le score est une DISTANCE. Plus il est bas, plus
     # l'extrait est proche de la question.
-    meilleur_score = resultats[0][1]
-
-    if meilleur_score > config.SEUIL_PERTINENCE:
-        # Même le meilleur extrait est trop loin : on refuse plutôt que
-        # d'halluciner.
-        return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
-                "motif_refus": "seuil", "meilleur_score": float(meilleur_score),
-                "extraits_verifies": 0, "extraits_ecartes": 0}
+    meilleur_score = min(c["distance"] for c in candidats)
 
     # Deux seuils distincts : SEUIL_PERTINENCE décide si on répond (sur le
     # meilleur extrait), SEUIL_CONTEXTE décide quels extraits suivants
     # accompagnent le meilleur. Avec un seul seuil, une question acceptée de
     # justesse n'avait plus qu'un extrait de contexte et sa réponse se
     # dégradait (campagne 3 du jeu de test).
-    retenus = [(doc, score) for doc, score in resultats
-               if score <= config.SEUIL_CONTEXTE]
+    #
+    # Exception : un morceau qui contient un mot rare de la question (trouvé
+    # par la recherche par mots-clés) est examiné même au-delà du seuil. La
+    # distance mesure une proximité de sens ; « Photoshop » dans un morceau
+    # qui parle de licences est un indice que le sens ne capte pas. C'est la
+    # vérification ci-dessous qui tranche.
+    retenus = [(c["doc"], c["distance"], c["via"]) for c in candidats
+               if c["distance"] <= config.SEUIL_CONTEXTE or c["mots_rares"]]
+
+    if not retenus or (meilleur_score > config.SEUIL_PERTINENCE
+                       and not any(c["mots_rares"] for c in candidats)):
+        # Même le meilleur extrait est trop loin, et aucun mot rare : on
+        # refuse plutôt que d'halluciner.
+        return {"reponse": MESSAGE_REFUS, "sources": [], "refus": True,
+                "motif_refus": "seuil", "meilleur_score": float(meilleur_score),
+                "extraits_verifies": 0, "extraits_ecartes": 0}
 
     # Troisième filtre : la distance mesure une proximité de vocabulaire,
     # pas la capacité d'un extrait à répondre (campagne 6 du jeu de test :
@@ -176,13 +184,13 @@ def repondre(question: str) -> dict:
     verifies = 0
     ecartes = 0
     pertinents = []
-    for doc, score in retenus:
+    for doc, score, via in retenus:
         if score > config.SEUIL_VERIFICATION:
             verifies += 1
             if not _extrait_pertinent(question, doc.page_content):
                 ecartes += 1
                 continue
-        pertinents.append((doc, score))
+        pertinents.append((doc, score, via))
     retenus = pertinents
 
     if not retenus:
@@ -191,7 +199,7 @@ def repondre(question: str) -> dict:
                 "meilleur_score": float(meilleur_score),
                 "extraits_verifies": verifies, "extraits_ecartes": ecartes}
 
-    contexte = "\n\n---\n\n".join(doc.page_content for doc, _ in retenus)
+    contexte = "\n\n---\n\n".join(doc.page_content for doc, _, _ in retenus)
     prompt = GABARIT_PROMPT.format(contexte=contexte, question=question)
     # Certains modèles commencent leur réponse par un espace ou un saut de ligne.
     reponse = _get_llm().invoke(prompt).content.strip()
@@ -206,7 +214,7 @@ def repondre(question: str) -> dict:
 
     sources = []
     deja_vues = set()
-    for doc, score in retenus:
+    for doc, score, via in retenus:
         cle = (doc.metadata.get("source"), doc.metadata.get("page"))
         if cle in deja_vues:
             continue  # même page déjà citée par un extrait plus proche
@@ -216,6 +224,9 @@ def repondre(question: str) -> dict:
             "page": doc.metadata.get("page"),
             "score": round(float(score), 3),
             "extrait": extrait_lisible(doc.page_content),
+            # Comment le morceau a été trouvé : "vecteur", "mots-clés" ou
+            # "les deux". Utile pour comprendre une réponse a posteriori.
+            "via": via,
         }
         sources.append(source)
 
