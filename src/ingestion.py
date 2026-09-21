@@ -10,28 +10,46 @@ sont calculés, les autres sont reconnus et ignorés, et les morceaux des
 fichiers modifiés ou retirés sont supprimés (voir identifiant()).
 """
 
-import functools
 import hashlib
 import time
 
 from langchain_chroma import Chroma
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain_core.documents import Document
 from langchain_ollama import OllamaEmbeddings
+from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from src import config
 
+# Lecteurs de fichiers, écrits ici plutôt qu'importés de langchain-community
+# (paquet en fin de vie). Chacun renvoie une liste de Document : un par page
+# pour un PDF (avec son numéro, à partir de 0, pour citer la source), un
+# seul pour un fichier texte.
+
+def lire_pdf(chemin):
+    return [Document(page_content=page.extract_text() or "",
+                     metadata={"page": numero})
+            for numero, page in enumerate(PdfReader(chemin).pages)]
+
+
+def lire_texte(chemin):
+    """UTF-8 d'abord : lu avec l'encodage par défaut de Windows (cp1252), un
+    fichier UTF-8 voit ses accents devenir « Ã© », ce qui pollue les
+    embeddings et dégrade la recherche. Repli cp1252 pour un vieux fichier."""
+    try:
+        texte = chemin.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        texte = chemin.read_text(encoding="cp1252")
+    # Pas de numéro de page : un fichier texte n'en a pas, et l'interface
+    # n'affiche alors que le nom du fichier.
+    return [Document(page_content=texte, metadata={})]
+
+
 # Quel lecteur utiliser selon l'extension du fichier.
-# encoding="utf-8" : sans lui, TextLoader lit avec l'encodage par défaut de
-# Windows (cp1252) et les accents des fichiers UTF-8 deviennent « Ã© », ce
-# qui pollue les embeddings et dégrade la recherche. autodetect_encoding
-# sert de repli pour un fichier qui ne serait pas en UTF-8.
-LECTEUR_TEXTE = functools.partial(TextLoader, encoding="utf-8",
-                                  autodetect_encoding=True)
 LECTEURS = {
-    ".pdf": PyPDFLoader,
-    ".txt": LECTEUR_TEXTE,
-    ".md": LECTEUR_TEXTE,
+    ".pdf": lire_pdf,
+    ".txt": lire_texte,
+    ".md": lire_texte,
 }
 
 # Nombre de morceaux envoyés à Ollama en une seule fois.
@@ -56,7 +74,7 @@ def charger_documents():
             print(f"  ignoré (format non géré) : {chemin.name}")
             continue
         try:
-            pages = lecteur(str(chemin)).load()
+            pages = lecteur(chemin)
         except Exception as erreur:
             print(f"  ERREUR sur {chemin.name} : {erreur}")
             continue
