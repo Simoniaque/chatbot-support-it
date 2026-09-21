@@ -58,6 +58,8 @@ def statistiques(entrees: list[dict]) -> dict:
     repondues = [e for e in questions if not e.get("refus")]
     tickets = [e for e in entrees if e["type"] == "ticket"]
     erreurs = [e for e in entrees if e["type"] == "erreur"]
+    avis = [e for e in entrees if e["type"] == "avis"]
+    avis_utiles = [e for e in avis if e.get("utile")]
 
     def moyenne(valeurs):
         valeurs = [v for v in valeurs if v is not None]
@@ -70,6 +72,9 @@ def statistiques(entrees: list[dict]) -> dict:
         "taux_refus": round(len(refus) / len(questions), 3) if questions else None,
         "tickets_crees": len(tickets),
         "erreurs": len(erreurs),
+        "avis": len(avis),
+        "avis_utiles": len(avis_utiles),
+        "taux_avis_utiles": round(len(avis_utiles) / len(avis), 3) if avis else None,
         "score_moyen_repondues": moyenne(e.get("meilleur_score") for e in repondues),
         "score_moyen_refus": moyenne(e.get("meilleur_score") for e in refus),
         "duree_moyenne_s": moyenne(e.get("duree_s") for e in questions),

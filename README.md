@@ -259,9 +259,10 @@ en clair entre le chatbot et GLPI.
 
 Chaque question posée via l'API est ajoutée à `logs/echanges.jsonl` : une
 ligne JSON par échange avec l'utilisateur connecté, la question, le meilleur
-score, le seuil en vigueur, les sources retenues (document, page, score), la
-réponse et la durée. Connexions, créations de tickets et erreurs GLPI y sont
-aussi tracées.
+score, le seuil en vigueur, les extraits vérifiés et écartés, les sources
+retenues (document, page, score), la réponse et la durée. Connexions,
+créations de tickets, erreurs GLPI et **avis des utilisateurs** (boutons
+« utile / pas utile » sous chaque réponse) y sont aussi tracés.
 
 ```powershell
 python -m src.journal      # statistiques : taux de refus, scores moyens, dernières questions
@@ -303,7 +304,7 @@ développement.
 - Pipeline d'ingestion complet, avec traitement par lots et reprise sur erreur
 - Recherche vectorielle et filtrage par seuil de pertinence (seuil calibré)
 - Génération des réponses avec citation des sources
-- API et interface web
+- API et interface web : fil de conversation, sources repliables, refus expliqués, avis utile / pas utile
 - Connexion avec les identifiants GLPI ; escalade vers GLPI : ticket créé au nom de l'utilisateur sur refus, après confirmation (validé sur GLPI 11, `docs/glpi-test.md`)
 - Journalisation des échanges (question, extraits retenus, scores, réponse)
 

@@ -3,7 +3,8 @@
 
 Deux livrables du cahier des charges en un seul fichier :
  - l'API      : POST /ask (question), POST /ticket (escalade vers GLPI),
-                POST /connexion et /deconnexion, GET /moi ;
+                POST /avis (retour utilisateur), POST /connexion et
+                /deconnexion, GET /moi ;
  - l'interface: la page statique servie sur /.
 
 Connexion : si GLPI est configuré, l'utilisateur doit se connecter avec ses
@@ -218,6 +219,29 @@ def ticket(payload: DemandeTicket, chatbot_session: str | None = Cookie(default=
     journal.enregistrer("ticket", utilisateur=utilisateur, question=question,
                         ticket_id=resultat["id"], url=resultat["url"])
     return resultat
+
+
+# --- Avis sur les réponses --------------------------------------------------
+
+class Avis(BaseModel):
+    """Retour de l'utilisateur sur une réponse : utile ou non, avec un
+    commentaire facultatif. Sert à mesurer la qualité perçue."""
+    question: str = Field(min_length=1, max_length=2000)
+    utile: bool
+    commentaire: str = Field(default="", max_length=2000)
+
+
+@app.post("/avis")
+def avis(payload: Avis, chatbot_session: str | None = Cookie(default=None)):
+    session = _exiger_session(chatbot_session)
+    journal.enregistrer(
+        "avis",
+        utilisateur=session["utilisateur"]["login"] if session else None,
+        question=payload.question.strip(),
+        utile=payload.utile,
+        commentaire=payload.commentaire.strip(),
+    )
+    return {"statut": "ok"}
 
 
 # --- Divers ---------------------------------------------------------------
