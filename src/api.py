@@ -8,9 +8,10 @@ Deux livrables du cahier des charges en un seul fichier :
  - l'interface: la page statique servie sur /.
 
 Connexion : si GLPI est configuré, l'utilisateur doit se connecter avec ses
-identifiants GLPI avant de poser des questions. Le chatbot garde en mémoire
-la session GLPI ouverte en son nom, repérée par un cookie. Sans GLPI, pas
-de connexion : usage anonyme, sans création de ticket.
+identifiants GLPI avant de poser des questions. Le chatbot conserve la
+session GLPI ouverte en son nom (src/sessions.py, SQLite), repérée par un
+cookie. Sans GLPI, pas de connexion : usage anonyme, sans création de
+ticket.
 
 À lancer :  uvicorn src.api:app --reload
 Puis ouvrir http://localhost:8000
@@ -18,13 +19,12 @@ Puis ouvrir http://localhost:8000
 
 import secrets
 import time
-from datetime import datetime, timedelta
 
 from fastapi import Cookie, FastAPI, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from src import config, glpi, journal, rag
+from src import config, glpi, journal, rag, sessions
 
 app = FastAPI(title="Chatbot Support IT")
 
@@ -45,11 +45,7 @@ async def pas_de_cache_html(request, call_next):
 
 
 # --- Sessions -------------------------------------------------------------
-# Sessions ouvertes, en mémoire : {identifiant du cookie: {...}}. Perdues au
-# redémarrage du serveur, ce qui oblige simplement à se reconnecter. Un
-# stockage persistant n'apporterait rien pour l'usage visé.
 NOM_COOKIE = "chatbot_session"
-_sessions: dict[str, dict] = {}
 
 
 def _connexion_requise() -> bool:
@@ -60,11 +56,10 @@ def _session_courante(cookie: str | None) -> dict | None:
     """Renvoie la session liée au cookie, ou None si absente ou expirée."""
     if not cookie:
         return None
-    session = _sessions.get(cookie)
+    session = sessions.lire(cookie)
     if session is None:
         return None
-    if datetime.now() > session["expire"]:
-        _sessions.pop(cookie, None)
+    if session.get("expiree"):
         glpi.fermer_session(session["session_token"])
         return None
     return session
@@ -98,12 +93,12 @@ def connexion(payload: Identifiants, reponse: Response):
     except glpi.ErreurGLPI as erreur:
         raise HTTPException(status_code=502, detail=str(erreur))
 
+    # Au passage, on ferme côté GLPI les sessions expirées qui traînent.
+    for jeton in sessions.purger_expirees():
+        glpi.fermer_session(jeton)
+
     identifiant = secrets.token_urlsafe(32)
-    _sessions[identifiant] = {
-        "session_token": ouverture["session_token"],
-        "utilisateur": ouverture["utilisateur"],
-        "expire": datetime.now() + timedelta(hours=config.DUREE_SESSION_HEURES),
-    }
+    sessions.creer(identifiant, ouverture["session_token"], ouverture["utilisateur"])
     # HttpOnly : le JavaScript de la page ne peut pas lire le cookie.
     # SameSite=Lax : il n'est pas envoyé depuis un autre site.
     reponse.set_cookie(NOM_COOKIE, identifiant, httponly=True, samesite="lax",
@@ -114,7 +109,7 @@ def connexion(payload: Identifiants, reponse: Response):
 
 @app.post("/deconnexion")
 def deconnexion(reponse: Response, chatbot_session: str | None = Cookie(default=None)):
-    session = _sessions.pop(chatbot_session, None) if chatbot_session else None
+    session = sessions.supprimer(chatbot_session) if chatbot_session else None
     if session:
         glpi.fermer_session(session["session_token"])
         journal.enregistrer("deconnexion", utilisateur=session["utilisateur"]["login"])
@@ -208,7 +203,7 @@ def ticket(payload: DemandeTicket, chatbot_session: str | None = Cookie(default=
                                      session["utilisateur"]["id"],
                                      question, payload.precisions)
     except glpi.SessionExpiree as erreur:
-        _sessions.pop(chatbot_session, None)
+        sessions.supprimer(chatbot_session)
         raise HTTPException(status_code=401, detail=str(erreur))
     except glpi.ErreurGLPI as erreur:
         journal.enregistrer("erreur", origine="glpi", utilisateur=utilisateur,

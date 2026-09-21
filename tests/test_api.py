@@ -3,14 +3,12 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from src import api, rag
+from src import api, config, rag, sessions
 from tests.conftest import FauxDocument as Doc, lire_journal
 
 
 @pytest.fixture
-def client(monkeypatch):
-    # Sessions en mémoire : on repart à vide pour chaque test.
-    monkeypatch.setattr(api, "_sessions", {})
+def client():
     return TestClient(api.app)
 
 
@@ -147,10 +145,37 @@ def test_session_glpi_expiree_deconnecte(client, faux_glpi):
     assert client.get("/moi").json()["utilisateur"] is None
 
 
-def test_session_chatbot_expiree(client, faux_glpi, monkeypatch):
-    from datetime import datetime, timedelta
+def expirer_toutes_les_sessions():
+    import sqlite3
+    with sqlite3.connect(config.FICHIER_SESSIONS) as connexion:
+        connexion.execute("UPDATE sessions SET expire = '2000-01-01T00:00:00'")
+
+
+def test_session_chatbot_expiree(client, faux_glpi):
     client.post("/connexion", json={"login": "m.dupont", "mot_de_passe": "secret"})
-    for session in api._sessions.values():
-        session["expire"] = datetime.now() - timedelta(seconds=1)
+    expirer_toutes_les_sessions()
     assert client.get("/moi").json()["utilisateur"] is None
+    assert faux_glpi.sessions_fermees == 1  # la session GLPI a été fermée
+    assert client.get("/moi").json()["utilisateur"] is None
+    assert faux_glpi.sessions_fermees == 1  # une seule fois
+
+
+def test_session_survit_a_un_redemarrage(faux_glpi):
+    # Deux clients = deux processus serveur successifs ; le cookie du premier
+    # est reconnu par le second parce que la session est dans SQLite.
+    premier = TestClient(api.app)
+    premier.post("/connexion", json={"login": "m.dupont", "mot_de_passe": "secret"})
+    cookie = premier.cookies[api.NOM_COOKIE]
+    second = TestClient(api.app)
+    r = second.get("/moi", cookies={api.NOM_COOKIE: cookie})
+    assert r.json()["utilisateur"]["login"] == "m.dupont"
+
+
+def test_purge_des_sessions_expirees_a_la_connexion(faux_glpi):
+    sessions.creer("expiree", "session-m.dupont", {"login": "y"})
+    expirer_toutes_les_sessions()
+    sessions.creer("valide", "session-m.dupont", {"login": "x"})
+    TestClient(api.app).post("/connexion", json={"login": "m.dupont", "mot_de_passe": "secret"})
+    assert sessions.lire("expiree") is None
+    assert sessions.lire("valide") is not None
     assert faux_glpi.sessions_fermees == 1

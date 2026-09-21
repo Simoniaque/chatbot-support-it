@@ -16,6 +16,9 @@ chroma_db/
 data/corpus/*
 !data/corpus/.gitkeep
 
+# Sessions des utilisateurs connectés (jetons GLPI).
+sessions.sqlite
+
 # Journaux d'échanges : contiennent les questions réelles des utilisateurs.
 logs/
 *.log

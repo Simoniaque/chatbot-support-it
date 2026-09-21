@@ -83,6 +83,9 @@ GLPI_APP_TOKEN = os.getenv("GLPI_APP_TOKEN", "").strip()
 # doit se reconnecter (GLPI a aussi sa propre expiration de session).
 DUREE_SESSION_HEURES = float(os.getenv("DUREE_SESSION_HEURES", "8"))
 
+# Sessions des utilisateurs connectés (voir src/sessions.py). Hors dépôt Git.
+FICHIER_SESSIONS = RACINE / "sessions.sqlite"
+
 # --- Journalisation --------------------------------------------------------
 # Chaque question (extraits retenus, scores, réponse) est ajoutée à un fichier
 # JSON Lines. Sert à mesurer la qualité et à calibrer le seuil.

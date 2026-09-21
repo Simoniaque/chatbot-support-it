@@ -22,10 +22,11 @@ from src import config, glpi, journal, rag
 
 @pytest.fixture(autouse=True)
 def journal_temporaire(tmp_path, monkeypatch):
-    """Chaque test écrit son journal dans un dossier jetable."""
+    """Chaque test écrit son journal et ses sessions dans un dossier jetable."""
     monkeypatch.setattr(config, "JOURNALISATION", True)
     monkeypatch.setattr(config, "DOSSIER_JOURNAL", tmp_path)
     monkeypatch.setattr(config, "FICHIER_JOURNAL", tmp_path / "echanges.jsonl")
+    monkeypatch.setattr(config, "FICHIER_SESSIONS", tmp_path / "sessions.sqlite")
     return tmp_path / "echanges.jsonl"
 
 
