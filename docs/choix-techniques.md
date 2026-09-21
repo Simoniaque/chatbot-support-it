@@ -146,13 +146,20 @@ campagnes.
 
 ## Ce qui reste vrai malgré tout : Mistral 7B, un compromis
 
-Aucun réglage n'a atteint zéro invention sans refuser des questions
-couvertes. L'invention restante vient du **rédacteur** (« pas de mention…
-cependant… ») malgré une consigne explicite. Le levier suivant serait un
-rédacteur qui obéit mieux ; `qwen2.5:7b` est installé pour le mesurer. Le
-choix de Mistral reste défendable : gratuit, local, 4 Go, et le pipeline est
-conçu pour que ses limites aient une issue (refus + ticket) plutôt que d'être
-masquées.
+Avec Mistral, aucun réglage n'a atteint zéro invention sans refuser des
+questions couvertes. L'invention restante venait du **rédacteur** (« pas de
+mention… cependant… ») malgré une consigne explicite.
+
+Mesuré ensuite avec `qwen2.5:7b` en rédacteur (campagne 8, même taille,
+même vitesse) : **0 invention sur 8 réponses**, et des réponses plus fidèles
+aux extraits (Mistral faisait un contresens sur la mise en attente d'un
+ticket ; Qwen lit correctement). Sur les critères du projet — refuser plutôt
+qu'inventer, rester fidèle au corpus — Qwen 2.5 est meilleur que Mistral 7B.
+
+Le modèle rédacteur est un réglage (`MODELE_LLM`), pas une dépendance : le
+changer ne touche ni au seuil (qui dépend du modèle d'embeddings) ni au
+reste du pipeline. Le choix final revient au porteur du projet ; la mesure
+plaide pour Qwen.
 
 ## Connexion avec les identifiants GLPI
 

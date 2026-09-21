@@ -437,6 +437,55 @@ Ce que ça montre :
 quelques secondes par question. Le modèle `qwen2.5:7b` reste installé pour
 le tester en rédacteur.
 
+## Campagne 8 — qwen2.5:7b en rédacteur (21/09/2026)
+
+Même réglage que la campagne 7 (0.65 / 0.65, vérification de tous les
+extraits, prompt v2), mais `MODELE_LLM=qwen2.5:7b` : Qwen rédige **et** juge
+(`MODELE_JUGE` vide = rédacteur). Réponses jugées sur l'ancrage, extraits
+relus.
+
+| # | Question | Score | Résultat | Comparé à Mistral (campagne 7) |
+|---|---|---|---|---|
+| A1 | Qu'est-ce qu'une entité dans GLPI ? | 0.313 | **Ancrée**, mot pour mot dans p. 415 (isolation, visibilité des actifs) | Idem |
+| A2 | Comment configurer les notifications par e-mail dans GLPI ? | 0.346 | **Refus (modèle)** : les extraits parlent des alertes sur recherches sauvegardées, pas des notifications | Mistral répondait hors cible |
+| A3 | Comment créer un ticket dans GLPI ? | 0.384 | Ancrée (p. 337) | Idem |
+| A4 | Comment ajouter un utilisateur dans GLPI ? | 0.416 | Refus justifié (vérification) | Idem |
+| A5 | Comment configurer les SLA ? | 0.492 | Ancrée, partielle : reprend p. 533 (« sélectionnez le SLA dans la liste déroulante ») | Mistral renvoyait à « Configurer vos SLA » |
+| A6 | Comment mettre un ticket en attente ? | 0.503 | **Ancrée et exacte** : « le technicien peut changer le statut… cependant selon ITIL, par le demandeur » | Mistral disait « le technicien ne peut pas », contresens sur p. 222 |
+| A7 | Comment importer des données depuis un fichier CSV ? | 0.554 | **Ancrée, minimale** : « utilisez le délimiteur CSV (; ou ,) » — c'est tout ce que dit p. 17 | **Mistral inventait** (« cependant, dans Excel… ») |
+| A8 | Comment fonctionne le plugin FusionInventory ? | 0.608 | Faux refus (vérification) | Idem |
+| A9 | Comment fonctionne la base de connaissances ? | 0.613 | Ancrée | Idem |
+| A10 | Comment gérer l'inventaire du parc informatique ? | 0.627 | Ancrée (permissions, p. 477) | Idem |
+| C1–C6 | | | **6 refus sur 6** | 5 (LDAP : Mistral répondait par le renvoi) |
+
+Bilan : **0 invention / 8 réponses**, 1 faux refus (A8). Durées 0,2 à 3 s
+par question une fois le modèle chargé (21 s au premier appel).
+
+| Réglage | Inventions | Faux refus (A) | Réponses |
+|---|---|---|---|
+| Campagne 7 : mistral rédacteur + juge | 1 / 9 | 1 / 10 | 9 / 25 |
+| Campagne 8 : qwen2.5:7b rédacteur + juge | **0 / 8** | 1 / 10 | 8 / 25 |
+
+Ce que ça montre :
+
+- **L'invention restante disparaît.** Face au même extrait tangent (p. 17,
+  délimiteur CSV), Mistral brodait une procédure ; Qwen écrit la seule
+  phrase que l'extrait autorise. C'est exactement ce que demande la consigne
+  v2, et Qwen l'applique.
+- **Les réponses sont plus fidèles**, pas seulement plus prudentes : sur
+  A6, Qwen lit correctement « le technicien peut… mais selon ITIL le
+  demandeur devrait », là où Mistral faisait un contresens.
+- **Le refus de A2 est un bon refus** : les extraits ne répondent pas à la
+  question posée. Mistral répondait à côté.
+- Même taille (7B, 4,7 Go), même vitesse, même coût.
+
+**Décision** : à prendre par le porteur du projet — remplacer `mistral` par
+`qwen2.5:7b` en `MODELE_LLM` touche au choix affiché dans le README et
+l'argumentaire. Sur la mesure, Qwen est meilleur sur tous les critères du
+projet (refuser plutôt qu'inventer, rester fidèle aux extraits). Le
+changement tient en une ligne de `.env` ; le seuil de pertinence, lui, ne
+bouge pas (il dépend du modèle d'embeddings, inchangé).
+
 ## Méthode à suivre pour les prochaines campagnes
 
 1. Passer les questions par `rag.repondre` (ou l'interface).

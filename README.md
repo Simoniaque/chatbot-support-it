@@ -329,7 +329,7 @@ développement.
 **En cours**
 
 - Enrichissement du corpus documentaire
-- Réduction du taux d'invention : 7/16 → 1/9 réponses après vérification des extraits (voir `tests/questions_test.md`) ; le cas restant (« cependant… ») tient au rédacteur Mistral 7B
+- Choix du modèle rédacteur : `qwen2.5:7b` mesuré à 0 invention / 8 réponses contre 1 / 9 pour `mistral` (voir `tests/questions_test.md`, campagne 8) — bascule à décider
 
 **À planifier**
 
