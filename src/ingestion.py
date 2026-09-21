@@ -5,9 +5,13 @@ Enchaînement : lire les fichiers -> découper en morceaux -> calculer les
 embeddings -> stocker dans ChromaDB.
 
 À lancer depuis la racine du projet :  python -m src.ingestion
-À relancer à chaque fois que le corpus change.
+À relancer à chaque fois que le corpus change : seuls les morceaux nouveaux
+sont calculés, les autres sont reconnus et ignorés, et les morceaux des
+fichiers modifiés ou retirés sont supprimés (voir identifiant()).
 """
 
+import functools
+import hashlib
 import time
 
 from langchain_chroma import Chroma
@@ -18,10 +22,16 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src import config
 
 # Quel lecteur utiliser selon l'extension du fichier.
+# encoding="utf-8" : sans lui, TextLoader lit avec l'encodage par défaut de
+# Windows (cp1252) et les accents des fichiers UTF-8 deviennent « Ã© », ce
+# qui pollue les embeddings et dégrade la recherche. autodetect_encoding
+# sert de repli pour un fichier qui ne serait pas en UTF-8.
+LECTEUR_TEXTE = functools.partial(TextLoader, encoding="utf-8",
+                                  autodetect_encoding=True)
 LECTEURS = {
     ".pdf": PyPDFLoader,
-    ".txt": TextLoader,
-    ".md": TextLoader,
+    ".txt": LECTEUR_TEXTE,
+    ".md": LECTEUR_TEXTE,
 }
 
 # Nombre de morceaux envoyés à Ollama en une seule fois.
@@ -74,6 +84,43 @@ def decouper(documents):
     return [m for m in morceaux if m.page_content and m.page_content.strip()]
 
 
+def identifiant(morceau):
+    """Identifiant stable d'un morceau : empreinte du fichier, de la page et
+    du texte. Relancer l'ingestion sur un corpus inchangé ne crée donc pas de
+    doublons, et un fichier ajouté ne coûte que ses propres morceaux. La page
+    fait partie de l'empreinte parce qu'un PDF répète souvent le même texte
+    (en-têtes, pieds de page) sur plusieurs pages."""
+    contenu = (f"{morceau.metadata.get('source', '')}\n"
+               f"{morceau.metadata.get('page', '')}\n{morceau.page_content}")
+    return hashlib.sha1(contenu.encode("utf-8")).hexdigest()
+
+
+def ecarter_deja_indexes(base, morceaux):
+    """Renvoie les morceaux absents de la base, et le nombre d'ignorés
+    (déjà indexés, ou doublons stricts dans le corpus lui-même)."""
+    uniques = {}
+    for m in morceaux:
+        uniques.setdefault(identifiant(m), m)
+    identifiants = list(uniques)
+    presents = set()
+    for debut in range(0, len(identifiants), 500):
+        presents.update(base.get(ids=identifiants[debut:debut + 500])["ids"])
+    nouveaux = [m for i, m in uniques.items() if i not in presents]
+    return nouveaux, len(morceaux) - len(nouveaux)
+
+
+def purger_obsoletes(base, morceaux):
+    """Supprime de la base les morceaux qui ne correspondent plus au corpus :
+    fichier modifié (ses anciens morceaux ont d'autres identifiants) ou
+    fichier retiré de data/corpus. Renvoie le nombre supprimé."""
+    actuels = {identifiant(m) for m in morceaux}
+    existants = base.get(include=[])["ids"]
+    obsoletes = [i for i in existants if i not in actuels]
+    for debut in range(0, len(obsoletes), 500):
+        base.delete(ids=obsoletes[debut:debut + 500])
+    return len(obsoletes)
+
+
 def indexer(morceaux):
     """Calcule les embeddings par lots et les enregistre dans ChromaDB."""
     embeddings = OllamaEmbeddings(
@@ -85,6 +132,15 @@ def indexer(morceaux):
         embedding_function=embeddings,
     )
 
+    supprimes = purger_obsoletes(base, morceaux)
+    if supprimes:
+        print(f"  {supprimes} morceau(x) obsolète(s) supprimé(s) de la base")
+    morceaux, ignores = ecarter_deja_indexes(base, morceaux)
+    if ignores:
+        print(f"  {ignores} morceau(x) déjà dans la base, ignoré(s)")
+    if not morceaux:
+        return 0, 0, ignores
+
     total = len(morceaux)
     traites = 0
     echecs = 0
@@ -94,7 +150,7 @@ def indexer(morceaux):
 
         for tentative in range(1, TENTATIVES_MAX + 1):
             try:
-                base.add_documents(lot)
+                base.add_documents(lot, ids=[identifiant(m) for m in lot])
                 traites += len(lot)
                 pourcentage = traites * 100 // total
                 print(f"  {traites}/{total} morceaux indexés ({pourcentage} %)")
@@ -110,7 +166,7 @@ def indexer(morceaux):
                           f"nouvelle tentative dans {attente} s...")
                     time.sleep(attente)
 
-    return traites, echecs
+    return traites, echecs, ignores
 
 
 def main():
@@ -125,9 +181,10 @@ def main():
 
     print(f"Calcul des embeddings par lots de {TAILLE_LOT} "
           f"(plusieurs minutes)...")
-    traites, echecs = indexer(morceaux)
+    traites, echecs, ignores = indexer(morceaux)
 
-    print(f"\nTerminé : {traites} morceau(x) indexé(s), {echecs} en échec.")
+    print(f"\nTerminé : {traites} morceau(x) indexé(s), {ignores} déjà présent(s), "
+          f"{echecs} en échec.")
     print(f"Base vectorielle : {config.DOSSIER_BASE_VECTORIELLE}")
     if echecs:
         print("Des lots ont échoué. Réduis TAILLE_LOT en haut de ce fichier "

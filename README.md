@@ -102,13 +102,24 @@ python -m src.ingestion
 ```
 
 Le traitement affiche sa progression. Compter plusieurs minutes pour un corpus
-de quelques centaines de pages.
+de quelques centaines de pages la première fois.
 
-À relancer à chaque modification du corpus. Pour repartir d'une base propre :
+**À relancer à chaque modification du corpus**, sans rien supprimer : chaque
+morceau a un identifiant stable (fichier, page, texte), donc seuls les
+morceaux nouveaux sont calculés, et ceux des fichiers modifiés ou retirés du
+dossier sont supprimés de la base. Ajouter un document de quelques pages
+prend quelques secondes.
+
+Pour essayer avec autre chose que le manuel GLPI, cinq procédures
+d'exemple (fictives) sont fournies dans `data/exemples/` :
 
 ```powershell
-Remove-Item -Recurse -Force chroma_db
+copy data\exemples\*.md data\corpus\
+python -m src.ingestion
 ```
+
+Les fichiers texte doivent être en UTF-8 (l'ingestion les lit ainsi, avec
+détection automatique en repli).
 
 ### 2. Lancer le serveur
 
@@ -154,6 +165,7 @@ ou de modèle.
 │   └── api.py         # API FastAPI + service de la page web
 ├── static/index.html  # Interface utilisateur
 ├── data/corpus/       # Documents sources (hors dépôt Git)
+├── data/exemples/     # Procédures d'exemple, fictives, à copier dans le corpus pour essayer
 ├── chroma_db/         # Base vectorielle générée (hors dépôt Git)
 ├── logs/              # Journal des échanges (hors dépôt Git)
 ├── outils/glpi-test/  # Instance GLPI jetable (Docker) pour tester l'escalade
@@ -305,6 +317,8 @@ dépôt Git. `JOURNALISATION=0` dans `.env` pour désactiver.
 | L'activation du `venv` est refusée | PowerShell bloque les scripts par défaut | `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` |
 | `Impossible de joindre Ollama` dans l'interface | Ollama n'est pas lancé | Le démarrer, puis reposer la question |
 | L'interface ne change pas après une modification de `index.html` | Cache du navigateur | Recharger la page (F5) |
+| Accents remplacés par `Ã©` dans les extraits d'un `.md` ou `.txt` | Fichier qui n'est pas en UTF-8 | Le réenregistrer en UTF-8 et relancer l'ingestion (les anciens morceaux sont remplacés) |
+| Une question n'est pas trouvée alors que le document en parle | Écart de vocabulaire entre la question et le texte (ex. « installer Photoshop » vs « licence hors catalogue ») | Reformuler ; à terme, recherche hybride mots-clés + vecteurs (voir « À planifier ») |
 | `uvicorn --reload` affiche « Reloading... » mais l'ancien code reste actif | Sous Windows, le rechargement automatique reste parfois bloqué | Arrêter uvicorn (Ctrl+C) et le relancer |
 | `Connexion à GLPI refusée : ERROR_...` à la connexion | Jeton d'application invalide, API REST ou connexion par identifiants désactivée | Vérifier `GLPI_*` dans `.env` et l'onglet API de GLPI |
 | « Votre session a expiré » juste après avoir posé une question | Serveur redémarré (les sessions sont en mémoire) | Se reconnecter |
@@ -328,9 +342,11 @@ développement.
 
 **En cours**
 
-- Enrichissement du corpus documentaire
+- Enrichissement du corpus documentaire (procédures internes réelles ; cinq exemples fictifs fournis)
 
 **À planifier**
 
 - Intégration GLPI côté lecture : base de connaissances et historique des tickets dans le corpus
-- Stratégie de mise à jour et d'archivage du corpus (montée en charge de ChromaDB)
+- Stratégie d'archivage du corpus (montée en charge de ChromaDB) — la mise à jour incrémentale est faite
+- Recherche hybride (mots-clés + vecteurs) pour les questions dont le vocabulaire diffère du document
+- Migration des lecteurs de documents hors de `langchain-community` (paquet en fin de vie)

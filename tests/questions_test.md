@@ -487,6 +487,33 @@ de pertinence ne bouge pas : il dépend du modèle d'embeddings, inchangé.
 Réglage de référence pour les prochaines campagnes : celui de la
 campagne 8.
 
+## Corpus étendu (21/09/2026)
+
+Cinq procédures d'exemple ajoutées (`data/exemples/`, 17 morceaux après
+correction de l'encodage). Six questions de contrôle, réglage de la
+campagne 8 :
+
+| Question | Score | Résultat |
+|---|---|---|
+| Comment réinitialiser mon mot de passe Windows ? | 0.503 | **Répond** depuis `procedure-mot-de-passe-windows.md`, mot pour mot. Question C1 devenue couverte |
+| Comment me connecter au VPN en télétravail ? | 0.346 | Répond depuis `procedure-vpn.md`, les 5 étapes |
+| Ma boîte mail est pleine, que faire ? | 0.571 | Répond depuis `faq-messagerie.md` (après correction de l'encodage : refusée avant, les extraits étaient en `Ã©`) |
+| Comment installer Photoshop ? | 0.965 | **Refus (seuil)** alors que `procedure-demande-materiel.md` dit que Photoshop est hors catalogue. Le morceau n'est pas dans les 10 premiers ; pour « Puis-je obtenir une licence Photoshop ? » il est 1er (0.516). Écart de vocabulaire : limite de la recherche vectorielle pure |
+| Quelle est la capitale de l'Australie ? | 0.782 | Refus (seuil), inchangé |
+| Comment créer un ticket dans GLPI ? | 0.384 | Inchangé |
+
+Deux enseignements :
+
+- **L'encodage des fichiers texte compte** : lus en cp1252 par défaut sous
+  Windows, les `.md` UTF-8 donnaient des embeddings calculés sur du texte
+  abîmé, et une question couverte était refusée. Corrigé dans l'ingestion.
+- **La recherche vectorielle rate les questions dont le vocabulaire diffère
+  du document.** Piste : recherche hybride (BM25 + vecteurs), qui aurait
+  trouvé « Photoshop » par le mot lui-même.
+
+Le seuil de 0.65 reste valable : les nouvelles questions couvertes sont
+entre 0.35 et 0.57, le hors sujet reste au-dessus de 0.70.
+
 ## Méthode à suivre pour les prochaines campagnes
 
 1. Passer les questions par `rag.repondre` (ou l'interface).
