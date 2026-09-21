@@ -330,7 +330,6 @@ développement.
 
 - Enrichissement du corpus documentaire
 - Réduction du taux d'invention : 7/16 → 1/9 réponses après vérification des extraits (voir `tests/questions_test.md`) ; le cas restant (« cependant… ») tient au rédacteur Mistral 7B
-- Rédaction de `docs/choix-techniques.md`
 
 **À planifier**
 

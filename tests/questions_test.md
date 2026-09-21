@@ -3,7 +3,7 @@
 Sert à mesurer la qualité des réponses et à calibrer le seuil de pertinence.
 À compléter au fur et à mesure que le corpus s'enrichit.
 
-**Dernière campagne : 20/09/2026** — corpus : *Help Center GLPI.pdf* (767
+**Dernières campagnes : 20 et 21/09/2026** — corpus : *Help Center GLPI.pdf* (767
 morceaux) ; `nomic-embed-text` + `mistral` ; `SEUIL_PERTINENCE=0.65`,
 `NOMBRE_EXTRAITS=4`. Les 25 questions ont été passées dans le pipeline
 complet (`rag.repondre`), réponses lues une à une.
