@@ -90,3 +90,15 @@ def test_extrait_tronque_seulement_si_long(faux_rag):
 def test_reponse_nettoyee_des_espaces(faux_rag):
     faux_rag([(Doc("pertinent", 1), 0.30)], reponse="  \nRéponse.\n")
     assert rag.repondre("question")["reponse"] == "Réponse."
+
+
+def test_extrait_lisible_retire_le_markdown():
+    md = ("# Titre\n\n> Note\n\nTexte **gras** et `code`.\n\n"
+          "| A | B |\n|---|---|\n| 1 | 2 |\n- puce\n")
+    assert rag.extrait_lisible(md) == "Titre Note Texte gras et code. A B 1 2 • puce"
+
+
+def test_extrait_lisible_tronque_seulement_si_long():
+    assert rag.extrait_lisible("court") == "court"
+    long = rag.extrait_lisible("x" * 400)
+    assert len(long) == 303 and long.endswith("...")

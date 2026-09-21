@@ -6,6 +6,8 @@ filtrage par le seuil de pertinence -> rédaction de la réponse par le LLM
 -> renvoi de la réponse ET de ses sources.
 """
 
+import re
+
 from langchain_chroma import Chroma
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
@@ -110,6 +112,22 @@ def _extrait_pertinent(question: str, extrait: str) -> bool:
     return verdict.startswith("OUI")
 
 
+def extrait_lisible(texte: str, longueur: int = 300) -> str:
+    """Aperçu d'un morceau pour l'interface : syntaxe Markdown retirée
+    (titres, gras, citations, code, tableaux), espaces normalisés, coupé à
+    `longueur` caractères. Le texte envoyé au modèle, lui, n'est pas touché."""
+    texte = re.sub(r"^\s{0,3}#{1,6}\s+", "", texte, flags=re.M)      # titres
+    texte = re.sub(r"^\s{0,3}>\s?", "", texte, flags=re.M)           # citations
+    texte = re.sub(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$",
+                   "", texte, flags=re.M)                            # lignes |---|---|
+    texte = texte.replace("|", " ")                                   # cellules
+    texte = re.sub(r"(\*\*|__|`+)", "", texte)                        # gras, code
+    texte = re.sub(r"^\s*[-*]\s+", "• ", texte, flags=re.M)          # puces
+    texte = re.sub(r"[ \t]+", " ", texte)
+    texte = re.sub(r"\s*\n\s*", " ", texte).strip()
+    return texte[:longueur] + "..." if len(texte) > longueur else texte
+
+
 def repondre(question: str) -> dict:
     """Renvoie {reponse, sources, refus, motif_refus, meilleur_score}.
 
@@ -197,9 +215,7 @@ def repondre(question: str) -> dict:
             "document": doc.metadata.get("source", "inconnu"),
             "page": doc.metadata.get("page"),
             "score": round(float(score), 3),
-            "extrait": (doc.page_content[:300] + "..."
-                        if len(doc.page_content) > 300
-                        else doc.page_content),
+            "extrait": extrait_lisible(doc.page_content),
         }
         sources.append(source)
 
