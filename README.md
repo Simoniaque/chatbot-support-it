@@ -124,6 +124,24 @@ Ollama doit tourner en arrière-plan pendant toute l'utilisation.
 
 ---
 
+## Tests
+
+```powershell
+python -m pytest
+```
+
+Une quarantaine de tests, en moins d'une seconde, sans Ollama ni GLPI : la
+base vectorielle, le modèle et l'API GLPI sont remplacés par des doublures
+(`tests/conftest.py`). Ils couvrent la logique de décision (seuils,
+vérification des extraits, refus), le dialogue avec GLPI, les sessions et les
+routes de l'API, et le journal.
+
+La **qualité des réponses**, elle, ne se teste pas automatiquement : c'est
+l'objet de `tests/questions_test.md`, à rejouer à chaque changement de corpus
+ou de modèle.
+
+---
+
 ## Structure
 
 ```
@@ -139,7 +157,7 @@ Ollama doit tourner en arrière-plan pendant toute l'utilisation.
 ├── chroma_db/         # Base vectorielle générée (hors dépôt Git)
 ├── logs/              # Journal des échanges (hors dépôt Git)
 ├── outils/glpi-test/  # Instance GLPI jetable (Docker) pour tester l'escalade
-├── tests/             # Jeu de questions d'évaluation
+├── tests/             # Tests automatisés (pytest) et jeu de questions d'évaluation
 └── docs/              # Justification des choix, documentation
 ```
 
